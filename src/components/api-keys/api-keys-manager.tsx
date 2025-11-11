@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { useToast } from "@/components/providers/toast-provider"
+import { Check, Copy } from "lucide-react"
 
 const formSchema = z.object({
   description: z.string().optional(),
@@ -103,6 +104,7 @@ export function ApiKeysManager({ keys }: ApiKeysManagerProps) {
     keys.map(serializeKeyRecord)
   )
   const [token, setToken] = React.useState<string | null>(null)
+  const [copied, setCopied] = React.useState(false)
   const { showToast } = useToast()
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -130,6 +132,7 @@ export function ApiKeysManager({ keys }: ApiKeysManagerProps) {
       const data = await response.json()
       if (!response.ok) throw new Error(data.error ?? "Failed to create key")
       setToken(data.token)
+      setCopied(false)
       setItems((prev) => [serializeKeyRecord(data.record), ...prev])
       form.reset({
         scopes: ["expenses:read"],
@@ -255,13 +258,33 @@ export function ApiKeysManager({ keys }: ApiKeysManagerProps) {
           </div>
         </form>
         {token ? (
-          <div className="rounded-2xl border bg-muted/40 p-4 text-sm">
-            <p className="font-semibold">Copy this token now:</p>
-            <code className="mt-2 block truncate rounded-lg bg-background px-3 py-2 text-xs">
+        <div className="rounded-2xl border bg-muted/40 p-4 text-sm">
+          <p className="font-semibold">Copy this token now:</p>
+          <div className="mt-2 flex items-center gap-2">
+            <code className="block flex-1 truncate rounded-lg bg-background px-3 py-2 text-xs">
               {token}
             </code>
+            <Button
+              type="button"
+              size="icon"
+              variant="ghost"
+              onClick={() => {
+                void navigator.clipboard.writeText(token)
+                setCopied(true)
+                showToast({
+                  title: "API key copied",
+                  description: "Store it in your secrets manager.",
+                  variant: "success",
+                })
+                window.setTimeout(() => setCopied(false), 2000)
+              }}
+              aria-label="Copy API key"
+            >
+              {copied ? <Check className="size-4 text-emerald-500" /> : <Copy className="size-4" />}
+            </Button>
           </div>
-        ) : null}
+        </div>
+      ) : null}
         <div className="space-y-3">
           {items.map((item) => {
             const createdLabel = formatDate(item.createdAt)
@@ -277,7 +300,15 @@ export function ApiKeysManager({ keys }: ApiKeysManagerProps) {
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-semibold">exp_{item.prefix}</p>
-                    <Badge variant={revoked || expired ? "outline" : "default"}>
+                    <Badge
+                      className={
+                        revoked
+                          ? "bg-rose-500/15 text-rose-600 dark:text-rose-300"
+                          : expired
+                          ? "bg-amber-500/15 text-amber-600 dark:text-amber-300"
+                          : "bg-emerald-500/15 text-emerald-600 dark:text-emerald-300"
+                      }
+                    >
                       {status}
                     </Badge>
                   </div>

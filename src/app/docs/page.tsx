@@ -3,79 +3,477 @@ import { redirect } from "next/navigation"
 import { DashboardShell } from "@/components/layout/dashboard-shell"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
+import { cn } from "@/lib/utils"
 
-const endpoints = [
+type Endpoint = {
+  method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"
+  path: string
+  scope: string
+  description: string
+  query?: string
+  request?: string
+  response?: string
+}
+
+type EndpointGroup = {
+  title: string
+  description: string
+  endpoints: Endpoint[]
+}
+
+const methodColors: Record<string, string> = {
+  GET: "bg-sky-500/15 text-sky-600 dark:text-sky-300 dark:bg-sky-500/20",
+  POST: "bg-sky-500/15 text-sky-600 dark:text-sky-300 dark:bg-sky-500/20",
+  PUT: "bg-sky-500/15 text-sky-600 dark:text-sky-300 dark:bg-sky-500/20",
+  PATCH: "bg-sky-500/15 text-sky-600 dark:text-sky-300 dark:bg-sky-500/20",
+  DELETE: "bg-sky-500/15 text-sky-600 dark:text-sky-300 dark:bg-sky-500/20",
+}
+
+const endpointGroups: EndpointGroup[] = [
   {
-    method: "GET",
-    path: "/api/expenses?start&end",
-    scope: "expenses:read",
-    description: "List decrypted expenses with optional date filters.",
+    title: "Expenses",
+    description: "Encrypted expense CRUD plus helper endpoints (`expenses:*`).",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/expenses?start&end",
+        scope: "expenses:read",
+        description: "List decrypted expenses (max 200, newest first).",
+        query: "`start`, `end` ISO date strings (optional).",
+        response: `{
+  expenses: Array<{
+    id: string
+    occurredOn: string
+    amount: number
+    impactAmount: number
+    description: string
+    categoryId: string | null
+    recurringSourceId?: string | null
+  }>
+}`,
+      },
+      {
+        method: "POST",
+        path: "/api/expenses",
+        scope: "expenses:write",
+        description: "Create a single expense.",
+        request: `{
+  occurredOn: string // ISO date
+  amount: number
+  impactAmount?: number
+  description: string
+  categoryId?: string
+}`,
+        response: `{
+  id: string
+  occurredOn: string
+  amount: number
+  impactAmount: number
+  description: string
+  categoryId: string | null
+  recurringSourceId?: string | null
+}`,
+      },
+      {
+        method: "POST",
+        path: "/api/expenses/bulk",
+        scope: "expenses:write",
+        description: "Submit 1–20 expenses in one request.",
+        request: `{
+  items: Array<{
+    occurredOn: string
+    amount: number
+    impactAmount?: number
+    description: string
+    categoryId?: string
+  }>
+  group?: {
+    title: string
+    notes?: string
+    splitBy?: number
+  }
+}`,
+        response: `Array<{
+  id: string
+  occurredOn: string
+  amount: number
+  impactAmount: number
+  description: string
+  categoryId: string | null
+  recurringSourceId?: string | null
+}>`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/expenses/:id",
+        scope: "expenses:write",
+        description: "Partial update for an expense.",
+        request: `Partial<{
+  occurredOn: string
+  amount: number
+  impactAmount?: number
+  description: string
+  categoryId?: string
+}>`,
+      },
+      {
+        method: "DELETE",
+        path: "/api/expenses/:id",
+        scope: "expenses:write",
+        description: "Remove an expense.",
+      },
+      {
+        method: "GET",
+        path: "/api/expenses/:id",
+        scope: "expenses:read",
+        description: "Fetch a single expense.",
+        response: `{
+  id: string
+  occurredOn: string
+  amount: number
+  impactAmount: number
+  description: string
+  categoryId: string | null
+  recurringSourceId?: string | null
+}`,
+      },
+      {
+        method: "GET",
+        path: "/api/expenses/suggest-category",
+        scope: "expenses:read",
+        description: "Return best-fit category hint based on description text.",
+        query: "`description` (string, required).",
+        response: `{
+  suggestion?: {
+    categoryId: string
+    categoryName: string
+    score: number
+  }
+}`,
+      },
+    ],
   },
   {
-    method: "POST",
-    path: "/api/expenses",
-    scope: "expenses:write",
-    description: "Create a single encrypted expense.",
+    title: "Categories",
+    description: "User-scoped categories share the same `expenses:*` scopes.",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/categories",
+        scope: "expenses:read",
+        description: "List categories (default set auto-seeds on first call).",
+        response: `Array<{
+  id: string
+  name: string
+  color: string
+}>`,
+      },
+      {
+        method: "POST",
+        path: "/api/categories",
+        scope: "expenses:write",
+        description: "Create or update a category.",
+        request: `{
+  id?: string
+  name: string
+  color: string
+}`,
+      },
+      {
+        method: "DELETE",
+        path: "/api/categories/:id",
+        scope: "expenses:write",
+        description: "Delete a category (expenses fall back to uncategorized).",
+      },
+    ],
   },
   {
-    method: "POST",
-    path: "/api/expenses/bulk",
-    scope: "expenses:write",
-    description: "Submit 1–20 expenses in one request (same schema as bulk builder).",
+    title: "Recurring expenses",
+    description: "Template endpoints that auto-materialize expenses.",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/recurring",
+        scope: "expenses:read",
+        description: "List recurring expense templates.",
+        response: `Array<{
+  id: string
+  description: string
+  amount: number
+  dueDayOfMonth: number
+  splitBy: number
+  isActive: boolean
+  categoryId: string | null
+}>`,
+      },
+      {
+        method: "POST",
+        path: "/api/recurring",
+        scope: "expenses:write",
+        description: "Create a recurring expense template.",
+        request: `{
+  description: string
+  amount: number
+  dueDayOfMonth: number // 1-28
+  splitBy?: number
+  categoryId?: string
+}`,
+      },
+      {
+        method: "PUT",
+        path: "/api/recurring/:id",
+        scope: "expenses:write",
+        description: "Toggle template active state.",
+      },
+      {
+        method: "PATCH",
+        path: "/api/recurring/:id",
+        scope: "expenses:write",
+        description: "Partial update for a template.",
+      },
+      {
+        method: "DELETE",
+        path: "/api/recurring/:id",
+        scope: "expenses:write",
+        description: "Delete a recurring template.",
+      },
+    ],
   },
   {
-    method: "GET",
-    path: "/api/spending?preset",
-    scope: "analytics:read",
-    description: "Return balance series plus comparison deltas.",
+    title: "Income",
+    description: "Single and recurring income endpoints (`income:write`).",
+    endpoints: [
+      {
+        method: "POST",
+        path: "/api/income",
+        scope: "income:write",
+        description: "Record an income entry.",
+        request: `{
+  description: string
+  amount: number
+  occurredOn: string
+}`,
+      },
+      {
+        method: "GET",
+        path: "/api/income/recurring",
+        scope: "income:write",
+        description: "List recurring income templates.",
+        response: `Array<{
+  id: string
+  description: string
+  amount: number
+  dueDayOfMonth: number
+  isActive: boolean
+}>`,
+      },
+      {
+        method: "POST",
+        path: "/api/income/recurring",
+        scope: "income:write",
+        description: "Create a recurring income template.",
+        request: `{
+  description: string
+  amount: number
+  dueDayOfMonth: number // 1-28
+}`,
+      },
+      {
+        method: "PATCH",
+        path: "/api/income/recurring/:id",
+        scope: "income:write",
+        description: "Update a recurring income template.",
+      },
+      {
+        method: "DELETE",
+        path: "/api/income/recurring/:id",
+        scope: "income:write",
+        description: "Delete a recurring income template.",
+      },
+    ],
   },
   {
-    method: "GET",
-    path: "/api/budget?month=YYYY-MM",
-    scope: "budget:read",
-    description: "Monthly overview totals and remaining budget.",
-  },
-  {
-    method: "GET",
-    path: "/api/feed",
-    scope: "analytics:read",
-    description: "Chronological feed of expenses, income, and automations.",
-  },
-  {
-    method: "GET",
-    path: "/api/categories",
-    scope: "expenses:read",
-    description: "List categories (defaults auto-create on first call).",
-  },
-  {
-    method: "POST",
-    path: "/api/categories",
-    scope: "expenses:write",
-    description: "Create or update a category with name + color.",
-  },
-  {
-    method: "DELETE",
-    path: "/api/categories/:id",
-    scope: "expenses:write",
-    description: "Remove a category (reassigns expenses to uncategorized).",
-  },
-  {
-    method: "POST",
-    path: "/api/income",
-    scope: "income:write",
-    description: "Record income entry (session or API key).",
-  },
-  {
-    method: "GET",
-    path: "/api/income/recurring",
-    scope: "income:write",
-    description: "List recurring income templates (write scope needed for parity).",
-  },
-  {
-    method: "POST",
-    path: "/api/income/recurring",
-    scope: "income:write",
-    description: "Create or update recurring income templates.",
+    title: "Analytics & reporting",
+    description:
+      "Read-only endpoints used by dashboards (`analytics:read`, `budget:read`).",
+    endpoints: [
+      {
+        method: "GET",
+        path: "/api/spending?preset",
+        scope: "analytics:read",
+        description: "Balance series plus comparison deltas.",
+        query: "`preset=3m|6m|12m|ytd|custom`, `start`, `end` (ISO).",
+        response: `{
+  series: {
+    range: {
+      preset: "3m" | "6m" | "12m" | "ytd" | "custom"
+      start: string
+      end: string
+    }
+    series: Array<{
+      key: string
+      label: string
+      income: number
+      expenses: number
+      balance: number
+    }>
+  }
+  comparison: {
+    current: {
+      totalIncome: number
+      totalExpenses: number
+      remainingBudget: number
+    }
+    previous: {
+      totalIncome: number
+      totalExpenses: number
+      remainingBudget: number
+    }
+    deltas: {
+      income: number
+      expenses: number
+      remaining: number
+    }
+  }
+}`,
+      },
+      {
+        method: "GET",
+        path: "/api/budget?month=YYYY-MM",
+        scope: "budget:read",
+        description: "Monthly overview totals and remaining budget.",
+        response: `{
+  start: string
+  end: string
+  totalIncome: number
+  totalExpenses: number
+  remainingBudget: number
+  categoryTotals: Array<{
+    id: string
+    label: string
+    color: string
+    value: number
+  }>
+}`,
+      },
+      {
+        method: "GET",
+        path: "/api/feed",
+        scope: "analytics:read",
+        description: "Chronological feed of expenses, income, automations.",
+        query: "`limit?`, `start?`.",
+        response: `{
+  feed: Array<{
+    id: string
+    type:
+      | "expense"
+      | "expense-group"
+      | "income"
+      | "recurring-expense"
+      | "recurring-income"
+      | "api-key"
+      | "import-schedule"
+    title: string
+    subtitle?: string
+    timestamp: string
+    amount?: number
+    category?: string
+    items?: Array<{
+      id: string
+      title: string
+      category?: string
+      amount?: number
+    }>
+  }>
+}`,
+      },
+      {
+        method: "GET",
+        path: "/api/analytics/forecast",
+        scope: "analytics:read",
+        description: "Actual vs projected net cash.",
+        response: `{
+  history: Array<{
+    key: string
+    label: string
+    income: number
+    expenses: number
+    balance: number
+    net: number
+  }>
+  forecast: Array<{
+    key: string
+    label: string
+    forecast: number
+  }>
+}`,
+      },
+      {
+        method: "GET",
+        path: "/api/analytics/anomalies",
+        scope: "analytics:read",
+        description: "Category z-score anomalies for a month.",
+        response: `Array<{
+  categoryId: string
+  categoryLabel: string
+  current: number
+  mean: number
+  std: number
+  zScore: number
+}>`,
+      },
+      {
+        method: "GET",
+        path: "/api/analytics/category-health",
+        scope: "analytics:read",
+        description: "Category share vs baseline stats.",
+        response: `Array<{
+  categoryId: string
+  label: string
+  color: string
+  actual: number
+  baseline: number
+  delta: number
+  status: "over" | "under"
+}>`,
+      },
+      {
+        method: "GET",
+        path: "/api/analytics/income-flow",
+        scope: "analytics:read",
+        description: "Sankey nodes/links describing income allocation.",
+        response: `{
+  nodes: Array<{ name: string; color?: string }>
+  links: Array<{ source: number; target: number; value: number }>
+  totalIncome: number
+  totalExpenses: number
+  recurringIncome: number
+  oneTimeIncome: number
+}`,
+      },
+      {
+        method: "POST",
+        path: "/api/analytics/scenario",
+        scope: "analytics:read",
+        description: "Budget simulation deltas.",
+        request: `{
+  incomeDelta?: number
+  expenseDelta?: number
+  categoryOverrides?: Array<{
+    categoryId: string
+    delta: number
+  }>
+}`,
+      },
+      {
+        method: "GET",
+        path: "/api/export",
+        scope: "analytics:read",
+        description: "CSV export of the balance series (text/csv).",
+        query: "Same params as `/api/spending`.",
+        response: "`string` // CSV payload",
+      },
+    ],
   },
 ]
 
@@ -107,31 +505,84 @@ export default async function DocsPage() {
             are hashed with bcrypt and never stored in plaintext. Revoke a key
             directly from the dashboard to invalidate immediately.
           </p>
+          <p>
+            Available scopes: <code>expenses:read</code>,{" "}
+            <code>expenses:write</code>, <code>income:write</code>,{" "}
+            <code>analytics:read</code>, <code>budget:read</code>. Errors return{" "}
+            <code>{`{ error: string }`}</code> with appropriate HTTP status codes.
+          </p>
         </CardContent>
       </Card>
 
-      <Card className="rounded-3xl">
-        <CardHeader>
-          <CardTitle>Endpoints</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {endpoints.map((endpoint) => (
-            <div
-              key={`${endpoint.method}-${endpoint.path}`}
-              className="rounded-2xl border px-4 py-3 text-sm"
-            >
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge>{endpoint.method}</Badge>
-                <code className="text-xs">{endpoint.path}</code>
-                <Badge variant="outline">{endpoint.scope}</Badge>
+      {endpointGroups.map((group) => (
+        <Card key={group.title} className="rounded-3xl">
+          <CardHeader>
+            <CardTitle>{group.title}</CardTitle>
+            <p className="text-sm text-muted-foreground">{group.description}</p>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {group.endpoints.map((endpoint) => (
+              <div
+                key={`${endpoint.method}-${endpoint.path}`}
+                className="rounded-2xl border px-4 py-3 text-sm"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge
+                    className={cn(
+                      "uppercase tracking-wide",
+                      methodColors[endpoint.method] ?? "bg-muted text-foreground"
+                    )}
+                  >
+                    {endpoint.method}
+                  </Badge>
+                  <code className="text-xs">{endpoint.path}</code>
+                  <Badge variant="outline">{endpoint.scope}</Badge>
+                </div>
+                <p className="mt-2 text-muted-foreground">{endpoint.description}</p>
+                {endpoint.query ? (
+                  <SectionLine label="Query">{endpoint.query}</SectionLine>
+                ) : null}
+                {endpoint.request ? (
+                  <CodeBlock title="Request">{endpoint.request}</CodeBlock>
+                ) : null}
+                {endpoint.response ? (
+                  <CodeBlock title="Response">{endpoint.response}</CodeBlock>
+                ) : null}
               </div>
-              <p className="mt-2 text-muted-foreground">
-                {endpoint.description}
-              </p>
-            </div>
-          ))}
-        </CardContent>
-      </Card>
+            ))}
+          </CardContent>
+        </Card>
+      ))}
     </DashboardShell>
+  )
+}
+
+function SectionLine({
+  label,
+  children,
+}: {
+  label: string
+  children: React.ReactNode
+}) {
+  return (
+    <p className="text-xs text-muted-foreground">
+      <span className="font-semibold text-foreground">{label}: </span>
+      {children}
+    </p>
+  )
+}
+
+function CodeBlock({
+  title,
+  children,
+}: {
+  title: string
+  children: React.ReactNode
+}) {
+  return (
+    <div className="mt-2 space-y-1 rounded-2xl border bg-muted/40 p-3 text-xs font-mono text-foreground/90">
+      <p className="font-semibold text-foreground">{title}</p>
+      <pre className="whitespace-pre-wrap leading-relaxed">{children}</pre>
+    </div>
   )
 }

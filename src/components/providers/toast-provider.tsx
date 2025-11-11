@@ -5,9 +5,9 @@ import { createPortal } from "react-dom"
 import { X } from "lucide-react"
 import { cn } from "@/lib/utils"
 
-export type ToastVariant = "default" | "success" | "destructive"
+type ToastVariant = "default" | "success" | "destructive"
 
-export type ToastInput = {
+type ToastInput = {
   title: string
   description?: string
   variant?: ToastVariant
@@ -19,26 +19,17 @@ type ToastRecord = ToastInput & {
 }
 
 type ToastContextValue = {
-  toasts: ToastRecord[]
   showToast: (toast: ToastInput) => void
-  dismissToast: (id: string) => void
 }
 
 const ToastContext = React.createContext<ToastContextValue | null>(null)
 
-function useToastContext() {
-  const context = React.useContext(ToastContext)
-  if (!context) {
-    throw new Error("Toast components must be used within a ToastProvider")
-  }
-  return context
-}
-
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = React.useState<ToastRecord[]>([])
+  const [mounted, setMounted] = React.useState(false)
 
-  const dismissToast = React.useCallback((id: string) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id))
+  React.useEffect(() => {
+    setMounted(true)
   }, [])
 
   const showToast = React.useCallback(
@@ -50,52 +41,41 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
       const record: ToastRecord = { id, ...toast }
       setToasts((prev) => [...prev, record])
       if (duration !== Infinity) {
-        window.setTimeout(() => dismissToast(id), duration)
+        window.setTimeout(() => {
+          setToasts((prev) => prev.filter((entry) => entry.id !== id))
+        }, duration)
       }
     },
-    [dismissToast]
+    []
   )
 
-  const value = React.useMemo(
-    () => ({
-      toasts,
-      showToast,
-      dismissToast,
-    }),
-    [toasts, showToast, dismissToast]
-  )
-
-  return <ToastContext.Provider value={value}>{children}</ToastContext.Provider>
-}
-
-export function useToast() {
-  const { showToast } = useToastContext()
-  return { showToast }
-}
-
-export function ToastViewport({ className }: { className?: string }) {
-  const { toasts, dismissToast } = useToastContext()
-  const [mountNode, setMountNode] = React.useState<HTMLElement | null>(null)
-
-  const ref = React.useCallback((node: HTMLDivElement | null) => {
-    setMountNode(node)
+  const dismissToast = React.useCallback((id: string) => {
+    setToasts((prev) => prev.filter((toast) => toast.id !== id))
   }, [])
 
   return (
-    <>
-      <div ref={ref} className={cn("relative w-full", className)} />
-      {mountNode && toasts.length
+    <ToastContext.Provider value={{ showToast }}>
+      {children}
+      {mounted && typeof document !== "undefined"
         ? createPortal(
-            <div className="pointer-events-none absolute right-0 top-0 flex flex-col gap-3">
+            <div className="pointer-events-none fixed right-4 top-[5.5rem] z-[100] flex w-full max-w-sm flex-col gap-3 sm:right-8 sm:top-[5rem] md:right-10">
               {toasts.map((toast) => (
                 <ToastCard key={toast.id} toast={toast} onDismiss={dismissToast} />
               ))}
             </div>,
-            mountNode
+            document.body
           )
         : null}
-    </>
+    </ToastContext.Provider>
   )
+}
+
+export function useToast() {
+  const ctx = React.useContext(ToastContext)
+  if (!ctx) {
+    throw new Error("useToast must be used within a ToastProvider")
+  }
+  return ctx
 }
 
 function ToastCard({
@@ -105,11 +85,11 @@ function ToastCard({
   toast: ToastRecord
   onDismiss: (id: string) => void
 }) {
-const variantStyles: Record<ToastVariant, string> = {
-  default: "border-border bg-background/95 text-foreground shadow-lg",
-  success: "border-emerald-500/60 bg-background text-foreground shadow-emerald-200/30",
-  destructive: "border-red-500/60 bg-background text-foreground shadow-red-200/30",
-}
+  const variantStyles: Record<ToastVariant, string> = {
+    default: "border-border bg-background/95 text-foreground shadow-lg",
+    success: "border-emerald-500/60 bg-background text-foreground shadow-emerald-200/30",
+    destructive: "border-red-500/60 bg-background text-foreground shadow-red-200/30",
+  }
 
   return (
     <div

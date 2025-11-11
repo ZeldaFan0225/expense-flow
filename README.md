@@ -69,24 +69,56 @@ AGENTS.md               # Full product specification and rebuild guide
 - `src/lib/automation/startup.ts` spawns a long-lived worker per server process; set `AUTOMATION_DISABLED=1` if your platform forbids forked children.
 - The worker currently executes through `tsx`, so keep dev dependencies installed in production or transpile `automation-worker.ts` ahead of deployment.
 
-## API additions
-| Endpoint | Method(s) | Scope | Notes |
-|----------|-----------|-------|-------|
-| `/api/analytics/forecast` | GET | `analytics_read` | Moving-average net forecast.
-| `/api/analytics/anomalies` | GET | `analytics_read` | Category z-score alerts.
-| `/api/analytics/category-health` | GET | `analytics_read` | Baseline vs actual shares.
-| `/api/analytics/income-flow` | GET | `analytics_read` | Sankey graph data.
-| `/api/analytics/scenario` | POST | `analytics_read` | Budget simulation.
-| `/api/feed` | GET | `analytics_read` | Activity timeline export.
-| `/api/import/preview` | POST (session) | – | CSV preview only.
-| `/api/import/rows` | POST (session) | – | Import edited rows.
-| `/api/import/schedules` | GET/POST (session) | – | Schedule CRUD + `/run` action.
-| `/api/expenses/suggest-category` | GET | `expenses_read` | Smart category hints.
-| `/api/categories` | GET | `expenses_read` | List categories (auto-creates defaults).
-| `/api/categories` | POST | `expenses_write` | Create/update categories by id.
-| `/api/settings` | PATCH (session) | – | Update currency + accent color.
+## API endpoints
 
-All endpoints still respect API keys + scopes (see `src/lib/api-auth.ts`) and rate limiting (120 req/min default). Session-only routes guard file uploads and user settings.
+Every request must include either a valid browser session (GitHub OAuth via NextAuth) or a scoped API key sent in the `x-api-key` header (`exp_<prefix>_<secret>`). Rate limiting defaults to 120 req/min per user or API key. Scopes map 1:1 to Prisma enum values (`expenses_read`, etc.).
+
+| Endpoint | Method | Scope(s) | Query/body | Response |
+|----------|--------|----------|------------|----------|
+| `/api/expenses` | GET | `expenses_read` | `start`, `end` ISO date strings (optional) | `{ expenses: Expense[] }` encrypted fields decrypted server-side |
+| `/api/expenses` | POST | `expenses_write` | JSON `{ occurredOn, amount, description, categoryId? }` | Newly created expense |
+| `/api/expenses/bulk` | POST | `expenses_write` | `{ items: ExpenseInput[], group? }` up to 20 rows | Array of inserted expenses |
+| `/api/expenses/:id` | GET | `expenses_read` | Path param `id` | Single expense or 404 |
+| `/api/expenses/:id` | PATCH | `expenses_write` | Partial expense payload | Updated expense |
+| `/api/expenses/:id` | DELETE | `expenses_write` | – | `{ ok: true }` |
+| `/api/expenses/suggest-category` | GET | `expenses_read` | Query `description` | `{ suggestion?: { categoryId, categoryName } }` |
+| `/api/categories` | GET | `expenses_read` | – | Array of categories (auto-seeds defaults) |
+| `/api/categories` | POST | `expenses_write` | `{ id?, name, color }` | Upserted category |
+| `/api/categories/:id` | DELETE | `expenses_write` | – | `{ ok: true }` |
+| `/api/recurring` | GET | `expenses_read` | – | Active recurring expense templates |
+| `/api/recurring` | POST | `expenses_write` | `{ description, amount, dueDayOfMonth, splitBy?, categoryId? }` | Created template |
+| `/api/recurring/:id` | PUT | `expenses_write` | – | Toggled template (`isActive` flipped) |
+| `/api/recurring/:id` | PATCH | `expenses_write` | Partial template payload | Updated template |
+| `/api/recurring/:id` | DELETE | `expenses_write` | – | `{ ok: true }` |
+| `/api/income` | POST | `income_write` | `{ description, amount, occurredOn }` | Created income row |
+| `/api/income/recurring` | GET/POST | `income_write` | Similar to expenses variant (no categories) | List or created template |
+| `/api/income/recurring/:id` | PATCH/DELETE | `income_write` | Partial payload / none | Updated or `{ ok: true }` |
+| `/api/budget` | GET | `budget_read` | `month=YYYY-MM` | Monthly overview (income vs expenses, categories) |
+| `/api/spending` | GET | `analytics_read` | `preset=3m|6m|12m|ytd|custom`, `start`, `end` | Balance series + period comparison |
+| `/api/export` | GET | `analytics_read` | Same params as `/api/spending` | CSV string (text/csv) |
+| `/api/feed` | GET | `analytics_read` | `limit?`, `start?` | Activity feed entries |
+| `/api/analytics/forecast` | GET | `analytics_read` | `preset` / `start`+`end` | Forecast + actual series |
+| `/api/analytics/anomalies` | GET | `analytics_read` | `month?` | Category anomaly list |
+| `/api/analytics/category-health` | GET | `analytics_read` | `month?` | Share vs baseline stats |
+| `/api/analytics/income-flow` | GET | `analytics_read` | `month?` | `{ nodes, links }` Sankey data |
+| `/api/analytics/scenario` | POST | `analytics_read` | `{ incomeDelta?, expenseDelta?, categoryOverrides? }` | Simulated comparison |
+| `/api/api-keys` | GET | Session only | – | User’s API keys with metadata |
+| `/api/api-keys` | POST | Session only | `{ scopes: string[], description?, expiresAt? }` | `{ token, record }` (token shown once) |
+| `/api/api-keys/:id` | DELETE | Session only | – | `{ ok: true, action: "revoked"|"deleted" }` |
+| `/api/import/preview` | POST | Session only | `FormData { file, mode, template }` | `{ rows: PreviewRow[] }` |
+| `/api/import` | POST | Session only | `FormData { file, mode, template }` | `{ imported: number }` |
+| `/api/import/rows` | POST | Session only | `{ mode, rows }` structured data | `{ imported }` |
+| `/api/import/schedules` | GET/POST | Session only | Schedule CRUD payloads | `{ schedule }` |
+| `/api/import/schedules/:id` | PATCH/DELETE | Session only | Partial payload / none | `{ schedule }` or `{ ok: true }` |
+| `/api/import/schedules/:id/run` | POST | Session only | – | `{ schedule }` with updated run timestamps |
+| `/api/settings` | PATCH | Session only | `{ defaultCurrency?, accentColor? }` | Updated settings |
+
+### Identifiers & bodies
+- Dates use ISO-8601 strings; services coerce them into JS `Date`.
+- Amounts are numeric (USD/floating). `impactAmount` defaults to `amount` if omitted.
+- Encrypted fields (descriptions, amounts) must always go through backend helpers; clients never send ciphertext.
+- When using API keys, include `x-api-key: exp_<prefix>_<secret>`. Scopes check per route, so e.g. hitting `/api/recurring` write endpoints requires `expenses_write`.
+- All JSON responses wrap errors as `{ error: string }` with proper HTTP status (`401`, `403`, `404`, `422`, `429`, `500`). The rate limiter sets `Retry-After` for 429s.
 
 ## Frontend architecture
 - **Dashboard** – `DashboardShell` + cards (`MonthlyOverviewCard`, `QuickStats`, `CashHistoryChart`, `ExpenseFeed`, `OnboardingChecklist`). Feed/analytics/pages reuse the same shell.
