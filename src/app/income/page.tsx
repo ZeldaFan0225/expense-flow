@@ -22,10 +22,12 @@ export default async function IncomePage() {
     listIncomeForRange(session.user.id, { start, end: now }),
     listRecurringIncomes(session.user.id),
   ])
-  const entries = entriesRaw.map((entry) => ({
-    ...entry,
-    occurredOn: entry.occurredOn.toISOString(),
-  }))
+  const oneOffEntries = entriesRaw
+    .filter((entry) => !entry.recurringSourceId)
+    .map((entry) => ({
+      ...entry,
+      occurredOn: entry.occurredOn.toISOString(),
+    }))
 
   return (
     <DashboardShell
@@ -55,7 +57,7 @@ export default async function IncomePage() {
         currency={session.user.defaultCurrency}
       />
       <IncomeManager
-        entries={entries.slice(0, 5)}
+        entries={oneOffEntries.slice(0, 5)}
         currency={session.user.defaultCurrency}
       />
     </DashboardShell>

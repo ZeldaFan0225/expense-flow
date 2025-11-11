@@ -1,3 +1,4 @@
+import * as React from "react"
 import { format } from "date-fns"
 import { Activity, Banknote, CalendarClock, KeyRound, RefreshCcw, Wallet } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -30,6 +31,24 @@ export function FeedTimeline({
   description = "Chronological view of expenses, income, automations, and keys",
   emptyState = "No activity yet. Start adding expenses or automations.",
 }: FeedTimelineProps) {
+  const getShareLabel = React.useCallback(
+    (actual?: number, impact?: number, splitBy?: number) => {
+      const parts: string[] = []
+      const hasActualDiff =
+        typeof actual === "number" &&
+        typeof impact === "number" &&
+        Math.abs(actual - impact) > 0.005
+      if (hasActualDiff) {
+        parts.push(`of ${formatCurrency(actual, currency)} total`)
+      }
+      if (splitBy && splitBy > 1) {
+        parts.push(`${splitBy}-way split`)
+      }
+      return parts.length ? parts.join(" · ") : null
+    },
+    [currency]
+  )
+
   return (
     <Card className="rounded-3xl">
       <CardHeader>
@@ -42,6 +61,11 @@ export function FeedTimeline({
         <ul className="space-y-4">
           {feed.map((event) => {
             const Icon = iconMap[event.type] ?? Activity
+            const eventShareLabel = getShareLabel(
+              event.actualAmount,
+              event.amount,
+              event.splitBy
+            )
             return (
               <li key={`${event.type}-${event.id}`} className="flex items-start gap-4">
                 <div className="mt-1 rounded-2xl border bg-muted/40 p-2">
@@ -61,42 +85,61 @@ export function FeedTimeline({
                   </p>
                   {event.items?.length ? (
                     <div className="mt-2 space-y-2 rounded-2xl border bg-muted/30 p-3">
-                      {event.items.map((item) => (
-                        <div
-                          key={item.id}
-                          className="flex w-full flex-col gap-2 text-xs sm:flex-row sm:items-center sm:gap-4"
-                        >
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate font-semibold text-foreground">
-                              {item.title}
-                            </p>
-                            {item.category ? (
-                              <p className="text-muted-foreground">{item.category}</p>
-                            ) : null}
+                      {event.items.map((item) => {
+                        const itemShareLabel = getShareLabel(
+                          item.actualAmount,
+                          item.amount,
+                          event.splitBy
+                        )
+                        return (
+                          <div
+                            key={item.id}
+                            className="flex w-full flex-col gap-2 text-xs sm:flex-row sm:items-center sm:gap-4"
+                          >
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate font-semibold text-foreground">
+                                {item.title}
+                              </p>
+                              {item.category ? (
+                                <p className="text-muted-foreground">{item.category}</p>
+                              ) : null}
+                            </div>
+                            <div className="shrink-0 text-right sm:text-left">
+                              {typeof item.amount === "number" ? (
+                                <p className="font-semibold text-rose-500">
+                                  {formatCurrency(item.amount, currency)}
+                                </p>
+                              ) : null}
+                              {itemShareLabel ? (
+                                <p className="text-[11px] text-muted-foreground">
+                                  {itemShareLabel}
+                                </p>
+                              ) : null}
+                            </div>
                           </div>
-                          {typeof item.amount === "number" ? (
-                            <p className="shrink-0 text-right font-semibold text-rose-500 sm:text-left">
-                              {formatCurrency(item.amount, currency)}
-                            </p>
-                          ) : null}
-                        </div>
-                      ))}
+                        )
+                      })}
                     </div>
                   ) : null}
                 </div>
                 {typeof event.amount === "number" ? (
-                  <p
-                    className={cn(
-                      "text-sm font-semibold",
-                      event.type === "expense" || event.type === "expense-group"
-                        ? "text-rose-500"
-                        : event.type === "income" || event.type === "recurring-income"
-                        ? "text-emerald-500"
-                        : "text-foreground"
-                    )}
-                  >
-                    {formatCurrency(event.amount, currency)}
-                  </p>
+                  <div className="text-right">
+                    <p
+                      className={cn(
+                        "text-sm font-semibold",
+                        event.type === "expense" || event.type === "expense-group"
+                          ? "text-rose-500"
+                          : event.type === "income" || event.type === "recurring-income"
+                          ? "text-emerald-500"
+                          : "text-foreground"
+                      )}
+                    >
+                      {formatCurrency(event.amount, currency)}
+                    </p>
+                    {eventShareLabel ? (
+                      <p className="text-xs text-muted-foreground">{eventShareLabel}</p>
+                    ) : null}
+                  </div>
                 ) : null}
               </li>
             )

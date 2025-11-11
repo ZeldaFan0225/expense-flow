@@ -16,12 +16,16 @@ export type FeedEvent = {
   timestamp: Date
   createdAt?: Date
   amount?: number
+  actualAmount?: number
+  splitBy?: number
+  recurringSourceId?: string
   category?: string
   items?: Array<{
     id: string
     title: string
     category?: string
     amount?: number
+    actualAmount?: number
   }>
 }
 
@@ -81,26 +85,30 @@ export async function getActivityFeed(userId: string, take = 40, options?: FeedO
 
   const feed: FeedEvent[] = []
 
-  type GroupBucket = {
+type GroupBucket = {
+  id: string
+  title: string
+  notes?: string
+  timestamp: Date
+  createdAt?: Date
+  totalImpact: number
+  totalActual: number
+  splitBy?: number
+  items: Array<{
     id: string
     title: string
-    notes?: string
-    timestamp: Date
-    createdAt?: Date
-    totalImpact: number
-    items: Array<{
-      id: string
-      title: string
-      category?: string
-      amount: number
-    }>
-  }
+    category?: string
+    amount: number
+    actualAmount: number
+  }>
+}
 
   const groupBuckets = new Map<string, GroupBucket>()
 
   for (const expense of expenses) {
     const description = decryptString(expense.descriptionEncrypted)
     const impactAmount = decryptNumber(expense.impactAmountEncrypted)
+    const actualAmount = decryptNumber(expense.amountEncrypted)
     const categoryName = expense.category?.name ?? "Uncategorized"
 
     if (expense.groupId && expense.group) {
@@ -118,6 +126,8 @@ export async function getActivityFeed(userId: string, take = 40, options?: FeedO
           timestamp: expense.occurredOn,
           createdAt: expense.createdAt,
           totalImpact: 0,
+          totalActual: 0,
+          splitBy: expense.group.splitBy ?? undefined,
           items: [],
         }
         groupBuckets.set(groupId, bucket)
@@ -128,8 +138,10 @@ export async function getActivityFeed(userId: string, take = 40, options?: FeedO
         title: description,
         category: categoryName,
         amount: impactAmount,
+        actualAmount,
       })
       bucket.totalImpact += impactAmount
+      bucket.totalActual += actualAmount
       if (expense.occurredOn > bucket.timestamp) {
         bucket.timestamp = expense.occurredOn
       }
@@ -143,6 +155,7 @@ export async function getActivityFeed(userId: string, take = 40, options?: FeedO
         title: description,
         subtitle: categoryName,
         amount: impactAmount,
+        actualAmount,
         category: categoryName,
         timestamp: expense.occurredOn,
         createdAt: expense.createdAt,
@@ -159,6 +172,8 @@ export async function getActivityFeed(userId: string, take = 40, options?: FeedO
         ? `${bucket.items.length} items · ${bucket.notes}`
         : `${bucket.items.length} items`,
       amount: bucket.totalImpact,
+      actualAmount: bucket.totalActual,
+      splitBy: bucket.splitBy,
       timestamp: bucket.timestamp,
       createdAt: bucket.createdAt,
       items: bucket.items,
@@ -166,11 +181,16 @@ export async function getActivityFeed(userId: string, take = 40, options?: FeedO
   }
 
   for (const income of incomes) {
+    const amount = decryptNumber(income.amountEncrypted)
+    const isRecurringInstance = Boolean(income.recurringSourceId)
     feed.push({
       id: income.id,
       type: "income",
       title: decryptString(income.descriptionEncrypted),
-      amount: decryptNumber(income.amountEncrypted),
+      subtitle: isRecurringInstance ? "Recurring materialization" : undefined,
+      amount,
+      actualAmount: amount,
+      recurringSourceId: income.recurringSourceId ?? undefined,
       timestamp: income.occurredOn,
       createdAt: income.createdAt,
     })

@@ -10,6 +10,7 @@ import {
   Home,
   KeyRound,
   LayoutDashboard,
+  ListOrdered,
   Repeat2,
   Settings,
   Shield,
@@ -29,7 +30,6 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { FeatureHint } from "@/components/feature-hint"
 
 const navigation = [
   {
@@ -38,6 +38,7 @@ const navigation = [
       { title: "Home", href: "/home", icon: Home },
       { title: "Overview", href: "/", icon: LayoutDashboard },
       { title: "Quick add", href: "/items", icon: Wallet },
+      { title: "Expenses", href: "/expenses", icon: ListOrdered },
       { title: "Analytics", href: "/analytics", icon: ChartSpline },
       { title: "Feed", href: "/feed", icon: Activity },
       { title: "Settings", href: "/settings", icon: Settings },
@@ -87,21 +88,16 @@ export function AppSidebar({
           </div>
         </div>
         <div className="px-2 pb-4">
-          <FeatureHint
-            label="Command palette"
-            description="Tap to open quick actions or press ⌘K / Ctrl+K from anywhere."
+          <button
+            type="button"
+            onClick={onQuickActionsClick}
+            className="w-full rounded-2xl border border-sidebar-border/50 bg-sidebar/80 px-4 py-2 text-left text-sm font-semibold text-sidebar-foreground shadow-sm transition hover:border-sidebar-border"
           >
-            <button
-              type="button"
-              onClick={onQuickActionsClick}
-              className="w-full rounded-2xl border border-sidebar-border/50 bg-sidebar/80 px-4 py-2 text-left text-sm font-semibold text-sidebar-foreground shadow-sm transition hover:border-sidebar-border"
-            >
-              Quick actions
-              <span className="ml-2 rounded border border-sidebar-border/60 px-2 py-0.5 text-sm font-semibold text-sidebar-foreground/80">
-                ⌘K
-              </span>
-            </button>
-          </FeatureHint>
+            Quick actions
+            <span className="ml-2 rounded border border-sidebar-border/60 px-2 py-0.5 text-sm font-semibold text-sidebar-foreground/80">
+              ⌘K
+            </span>
+          </button>
         </div>
       </SidebarHeader>
       <SidebarContent>

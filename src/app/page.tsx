@@ -30,14 +30,16 @@ export default async function Home() {
       description="Encrypted expenses, recurring income, and API insights."
       user={session.user}
       actions={
-        <FeatureHint
-          label="Bulk item builder"
-          description="Jump straight into the multi-add builder to log up to 20 expenses at once."
-        >
-          <Button asChild size="sm">
-            <Link href="/items">New expense</Link>
-          </Button>
-        </FeatureHint>
+        <div className="hidden sm:block">
+          <FeatureHint
+            label="Bulk item builder"
+            description="Jump straight into the multi-add builder to log up to 20 expenses at once."
+          >
+            <Button asChild size="sm">
+              <Link href="/items">New expense</Link>
+            </Button>
+          </FeatureHint>
+        </div>
       }
     >
       <GuidedSteps

@@ -18,7 +18,7 @@ export async function getDailySummary(userId: string, targetDate = new Date()) {
   const [expenses, incomes, recurring, recentExpenseTrend] = await Promise.all([
     prisma.expense.findMany({
       where: { userId, occurredOn: { gte: start, lte: end } },
-      include: { category: true },
+      include: { category: true, group: true },
       orderBy: { occurredOn: "desc" },
     }),
     prisma.income.findMany({
@@ -62,6 +62,7 @@ export async function getDailySummary(userId: string, targetDate = new Date()) {
     description: decryptString(expense.descriptionEncrypted),
     category: expense.category?.name ?? null,
     categoryColor: expense.category?.color ?? null,
+    splitBy: expense.group?.splitBy ?? null,
   }))
 
   const incomeDetails = incomes.map((income) => ({

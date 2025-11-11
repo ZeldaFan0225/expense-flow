@@ -18,6 +18,20 @@ type ExpenseWithRelations = Expense & {
   group: ExpenseGroup | null
 }
 
+function resolveImpactAmount(
+  amount: number,
+  providedImpact: number | undefined,
+  splitBy?: number | null
+) {
+  if (typeof providedImpact === "number") {
+    return providedImpact
+  }
+  if (splitBy && splitBy > 1) {
+    return amount / splitBy
+  }
+  return amount
+}
+
 function mapExpense(record: ExpenseWithRelations) {
   return {
     id: record.id,
@@ -139,6 +153,8 @@ export async function bulkCreateExpenses(userId: string, payload: unknown) {
 
   if (!data.items.length) return []
 
+  const pendingSplitBy = data.group?.splitBy ?? 1
+
   const group = data.group
     ? await prisma.expenseGroup.create({
         data: {
@@ -164,7 +180,9 @@ export async function bulkCreateExpenses(userId: string, payload: unknown) {
           groupId: group?.id,
           amountEncrypted: serializeEncrypted(encryptNumber(item.amount)),
           impactAmountEncrypted: serializeEncrypted(
-            encryptNumber(item.impactAmount ?? item.amount)
+            encryptNumber(
+              resolveImpactAmount(item.amount, item.impactAmount, pendingSplitBy)
+            )
           ),
           descriptionEncrypted: serializeEncrypted(
             encryptString(item.description)

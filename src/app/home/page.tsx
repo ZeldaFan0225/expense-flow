@@ -34,13 +34,23 @@ export default async function HomePage() {
     maximumFractionDigits: 2,
   })
 
-  const expenseItems = summary.expenses.map((expense) => ({
-    id: expense.id,
-    title: expense.description || "Untitled expense",
-    subtitle: expense.category ?? "Uncategorized",
-    amount: formatter.format(expense.impactAmount),
-    meta: undefined,
-  }))
+  const expenseItems = summary.expenses.map((expense) => {
+    const differs = Math.abs(expense.amount - expense.impactAmount) > 0.005
+    const metaParts: string[] = []
+    if (differs) {
+      metaParts.push(`of ${formatter.format(expense.amount)} total`)
+    }
+    if (expense.splitBy && expense.splitBy > 1) {
+      metaParts.push(`${expense.splitBy}-way split`)
+    }
+    return {
+      id: expense.id,
+      title: expense.description || "Untitled expense",
+      subtitle: expense.category ?? "Uncategorized",
+      amount: formatter.format(expense.impactAmount),
+      meta: metaParts.length ? metaParts.join(" · ") : undefined,
+    }
+  })
 
   const incomeItems = summary.incomes.map((income) => ({
     id: income.id,
@@ -88,14 +98,16 @@ export default async function HomePage() {
       description="Your daily pulse plus a Shortcut-ready summary endpoint."
       user={session.user}
       actions={
-        <FeatureHint
-          label="Need to update?"
-          description="Use the bulk builder to add more entries before refreshing this snapshot."
-        >
-          <Button asChild size="sm">
-            <Link href="/items">Add entries</Link>
-          </Button>
-        </FeatureHint>
+        <div className="hidden sm:block">
+          <FeatureHint
+            label="Need to update?"
+            description="Use the bulk builder to add more entries before refreshing this snapshot."
+          >
+            <Button asChild size="sm">
+              <Link href="/items">Add entries</Link>
+            </Button>
+          </FeatureHint>
+        </div>
       }
     >
       <div className="space-y-6">
