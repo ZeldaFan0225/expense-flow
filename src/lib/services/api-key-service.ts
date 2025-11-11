@@ -38,11 +38,16 @@ export async function revokeApiKey(userId: string, id: string) {
   if (!id) {
     throw new Error("API key id is required")
   }
-  await prisma.apiKey.findFirstOrThrow({
+  const apiKey = await prisma.apiKey.findFirstOrThrow({
     where: { id, userId },
   })
+  if (apiKey.revokedAt) {
+    await prisma.apiKey.delete({ where: { id } })
+    return { action: "deleted" as const }
+  }
   await prisma.apiKey.update({
     where: { id },
     data: { revokedAt: new Date() },
   })
+  return { action: "revoked" as const }
 }

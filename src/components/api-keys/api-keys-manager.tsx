@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
+import { useToast } from "@/components/providers/toast-provider"
 
 const formSchema = z.object({
   description: z.string().optional(),
@@ -23,6 +24,7 @@ type ApiKeyInput = {
   createdAt: string | Date
   revokedAt: string | Date | null
   expiresAt: string | Date | null
+  description?: string | null
 }
 
 type ApiKeyRecord = {
@@ -32,6 +34,7 @@ type ApiKeyRecord = {
   createdAt: string
   revokedAt: string | null
   expiresAt: string | null
+  description?: string | null
 }
 
 type ApiKeysManagerProps = {
@@ -101,6 +104,7 @@ export function ApiKeysManager({ keys }: ApiKeysManagerProps) {
   )
   const [token, setToken] = React.useState<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
+  const { showToast } = useToast()
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -139,23 +143,42 @@ export function ApiKeysManager({ keys }: ApiKeysManagerProps) {
     }
   }
 
-  const revokeKey = async (id: string) => {
+  const handleKeyAction = async (item: ApiKeyRecord) => {
     setError(null)
     try {
-      const response = await fetch(`/api/api-keys/${id}`, {
+      const response = await fetch(`/api/api-keys/${item.id}`, {
         method: "DELETE",
       })
+      const data = await response.json()
       if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error ?? "Failed to revoke key")
+        throw new Error(data.error ?? "Failed to update key")
       }
-      setItems((prev) =>
-        prev.map((item) =>
-          item.id === id ? { ...item, revokedAt: new Date().toISOString() } : item
+      if (data.action === "deleted") {
+        setItems((prev) => prev.filter((entry) => entry.id !== item.id))
+        showToast({
+          title: "API key deleted",
+          description: "The revoked key has been permanently removed.",
+          variant: "success",
+        })
+      } else {
+        setItems((prev) =>
+          prev.map((entry) =>
+            entry.id === item.id ? { ...entry, revokedAt: new Date().toISOString() } : entry
+          )
         )
-      )
+        showToast({
+          title: "API key revoked",
+          description: "The token is no longer valid for API calls.",
+        })
+      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to revoke key")
+      const message = err instanceof Error ? err.message : "Failed to update key"
+      setError(message)
+      showToast({
+        title: "Unable to update API key",
+        description: message,
+        variant: "destructive",
+      })
     }
   }
 
@@ -254,6 +277,11 @@ export function ApiKeysManager({ keys }: ApiKeysManagerProps) {
                       {status}
                     </Badge>
                   </div>
+                  {item.description ? (
+                    <p className="text-xs text-muted-foreground">
+                      {item.description}
+                    </p>
+                  ) : null}
                   <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                     {createdLabel ? <span>Created {createdLabel}</span> : null}
                     {createdLabel ? <span>•</span> : null}
@@ -268,12 +296,11 @@ export function ApiKeysManager({ keys }: ApiKeysManagerProps) {
                   </div>
                 </div>
                 <Button
-                  variant="ghost"
+                  variant={revoked ? "destructive" : "ghost"}
                   size="sm"
-                  onClick={() => revokeKey(item.id)}
-                  disabled={revoked}
+                  onClick={() => handleKeyAction(item)}
                 >
-                  {revoked ? "Revoked" : "Revoke"}
+                  {revoked ? "Delete" : "Revoke"}
                 </Button>
               </div>
             )

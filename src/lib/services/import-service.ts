@@ -41,6 +41,27 @@ const BANK_TEMPLATES: Record<
   },
 }
 
+const CSV_ALLOWED_MIME_TYPES = new Set([
+  "text/csv",
+  "application/csv",
+  "application/vnd.ms-excel",
+  "text/plain",
+])
+
+const MAX_UPLOAD_BYTES = Number(process.env.CSV_MAX_UPLOAD_BYTES ?? 5 * 1024 * 1024)
+
+export function assertValidCsvFile(file: File) {
+  const mime = (file.type ?? "").toLowerCase()
+  const name = (file.name ?? "").toLowerCase()
+  if (!CSV_ALLOWED_MIME_TYPES.has(mime) && !name.endsWith(".csv")) {
+    throw new Error("Unsupported file type. Upload a CSV file.")
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    const maxMb = Math.round((MAX_UPLOAD_BYTES / 1024 / 1024) * 10) / 10
+    throw new Error(`File too large. Maximum upload size is ${maxMb} MB.`)
+  }
+}
+
 async function findOrCreateCategory(userId: string, name: string) {
   const existing = await prisma.category.findFirst({
     where: { userId, name: { equals: name, mode: "insensitive" } },

@@ -10,6 +10,7 @@ import { ThemeToggle } from "@/components/theme-toggle"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { ToastViewport } from "@/components/providers/toast-provider"
 
 type DashboardShellProps = {
   heading: string
@@ -154,6 +155,7 @@ export function DashboardShell({
             ) : null}
           </div>
         </header>
+        <ToastViewport className="mx-auto mt-4 w-full max-w-6xl px-4 sm:px-6 lg:px-8" />
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto flex w-full max-w-6xl flex-col gap-8 px-4 py-8">
             {children}

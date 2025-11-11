@@ -3,6 +3,8 @@ import { nanoid } from "nanoid"
 import type { ApiKey, ApiScope } from "@prisma/client"
 
 const BCRYPT_ROUNDS = 12
+const TOKEN_PREFIX = "exp_"
+const API_KEY_PREFIX_LENGTH = 8
 
 export type GeneratedApiKey = {
   token: string
@@ -12,9 +14,9 @@ export type GeneratedApiKey = {
 }
 
 export function generateApiKeyToken(): GeneratedApiKey {
-  const prefix = nanoid(8).toLowerCase()
+  const prefix = nanoid(API_KEY_PREFIX_LENGTH).toLowerCase()
   const secret = nanoid(32)
-  const token = `exp_${prefix}_${secret}`
+  const token = `${TOKEN_PREFIX}${prefix}_${secret}`
   const hashedSecret = bcrypt.hashSync(secret, BCRYPT_ROUNDS)
   return { token, prefix, secret, hashedSecret }
 }
@@ -24,10 +26,21 @@ export async function hashApiKeySecret(secret: string) {
 }
 
 export function parseApiKeyToken(token: string | null) {
-  if (!token) return null
-  if (!token.startsWith("exp_")) return null
-  const [, prefix, secret] = token.split("_")
-  if (!prefix || !secret) return null
+  if (!token || !token.startsWith(TOKEN_PREFIX)) return null
+  const prefixStart = TOKEN_PREFIX.length
+  const prefixEnd = prefixStart + API_KEY_PREFIX_LENGTH
+  if (token.length <= prefixEnd) {
+    return null
+  }
+  const separator = token[prefixEnd]
+  if (separator !== "_") {
+    return null
+  }
+  const prefix = token.slice(prefixStart, prefixEnd)
+  const secret = token.slice(prefixEnd + 1)
+  if (!prefix || !secret) {
+    return null
+  }
   return { prefix, secret }
 }
 

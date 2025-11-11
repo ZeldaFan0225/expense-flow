@@ -19,6 +19,7 @@ export default async function ApiKeysPage() {
     createdAt: key.createdAt.toISOString(),
     revokedAt: key.revokedAt ? key.revokedAt.toISOString() : null,
     expiresAt: key.expiresAt ? key.expiresAt.toISOString() : null,
+    description: key.description ?? null,
   }))
 
   return (

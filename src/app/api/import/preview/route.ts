@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server"
 import { authenticateRequest } from "@/lib/api-auth"
 import { handleApiError, json } from "@/lib/http"
 import { csvImportSchema } from "@/lib/validation"
-import { previewCsvRows } from "@/lib/services/import-service"
+import { assertValidCsvFile, previewCsvRows } from "@/lib/services/import-service"
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,6 +18,14 @@ export async function POST(request: NextRequest) {
     const file = formData.get("file")
     if (!(file instanceof File)) {
       return json({ error: "File is required" }, { status: 400 })
+    }
+    try {
+      assertValidCsvFile(file)
+    } catch (validationError) {
+      return json(
+        { error: validationError instanceof Error ? validationError.message : "Invalid file" },
+        { status: 400 }
+      )
     }
 
     const parsed = csvImportSchema.parse({

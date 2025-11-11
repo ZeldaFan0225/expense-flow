@@ -19,8 +19,8 @@ export async function DELETE(request: NextRequest) {
     if (auth.source !== "session") {
       return json({ error: "Manage API keys through the dashboard." }, { status: 403 })
     }
-    await revokeApiKey(auth.userId, id)
-    return json({ ok: true })
+    const result = await revokeApiKey(auth.userId, id)
+    return json({ ok: true, action: result.action })
   } catch (error) {
     return handleApiError(error)
   }

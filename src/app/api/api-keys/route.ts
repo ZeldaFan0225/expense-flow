@@ -7,6 +7,14 @@ import {
 } from "@/lib/services/api-key-service"
 import { scopesToStrings } from "@/lib/api-keys"
 
+function presentApiKey(record: Awaited<ReturnType<typeof listApiKeys>>[number]) {
+  const { hashedSecret, ...rest } = record
+  return {
+    ...rest,
+    scopes: scopesToStrings(record.scopes),
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const auth = await authenticateRequest(request)
@@ -15,10 +23,7 @@ export async function GET(request: NextRequest) {
     }
     const keys = await listApiKeys(auth.userId)
     return json({
-      keys: keys.map((key) => ({
-        ...key,
-        scopes: scopesToStrings(key.scopes),
-      })),
+      keys: keys.map(presentApiKey),
     })
   } catch (error) {
     return handleApiError(error)
@@ -36,10 +41,7 @@ export async function POST(request: NextRequest) {
     return json(
       {
         token: result.token,
-        record: {
-          ...result.record,
-          scopes: scopesToStrings(result.record.scopes),
-        },
+        record: presentApiKey(result.record),
       },
       { status: 201 }
     )
