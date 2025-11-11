@@ -15,6 +15,8 @@ import {
   Sankey,
 } from "recharts"
 import type { NodeProps as SankeyNodeProps } from "recharts/types/chart/Sankey"
+import type { SankeyNode as RechartsSankeyNode } from "recharts/types/util/types"
+import type { CategoryHealthEntry } from "@/lib/services/analytics-service"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs } from "@/components/ui/tabs"
@@ -79,16 +81,6 @@ type Anomaly = {
   zScore: number
 }
 
-type CategoryHealth = {
-  categoryId: string
-  label: string
-  color: string
-  actual: number
-  baseline: number
-  delta: number
-  status: "over" | "under"
-}
-
 type IncomeFlow = {
   nodes: Array<{ name: string; color?: string }>
   links: Array<{ source: number; target: number; value: number }>
@@ -108,7 +100,7 @@ type AnalyticsDashboardProps = {
   initialComparison: Comparison
   initialForecast: ForecastData
   initialAnomalies: Anomaly[]
-  initialCategoryHealth: CategoryHealth[]
+  initialCategoryHealth: CategoryHealthEntry[]
   initialIncomeFlow: IncomeFlow
   categories: ScenarioCategory[]
   currency?: string
@@ -448,11 +440,17 @@ function IncomeFlowCard({ flow, currency }: { flow: IncomeFlow; currency: string
         : { top: 16, right: 120, bottom: 16, left: 150 },
     [isCompact]
   )
-  const sankeyLayout = isCompact ? "vertical" : "horizontal"
   const sankeyPadding = isCompact ? 28 : 48
   const sankeyNodeWidth = isCompact ? 14 : 18
   const linkCurvature = isCompact ? 0.35 : 0.5
   const chartHeight = isCompact ? "34rem" : "30rem"
+  const renderSankeyNode = React.useCallback(
+    (nodeProps: SankeyNodeProps) =>
+      (<ThemedSankeyNode {...nodeProps} /> as unknown as React.ReactElement<
+        React.SVGProps<SVGRectElement>
+      >),
+    []
+  )
 
   return (
     <Card className="rounded-3xl">
@@ -471,9 +469,8 @@ function IncomeFlowCard({ flow, currency }: { flow: IncomeFlow; currency: string
                 nodePadding={sankeyPadding}
                 nodeWidth={sankeyNodeWidth}
                 linkCurvature={linkCurvature}
-                layout={sankeyLayout}
                 margin={sankeyMargin}
-                node={<ThemedSankeyNode />}
+                node={renderSankeyNode}
               >
                 <Tooltip
                   formatter={(value: number) => formatCurrency(value, currency)}
@@ -514,8 +511,11 @@ function IncomeFlowCard({ flow, currency }: { flow: IncomeFlow; currency: string
   )
 }
 
+type ThemedNodePayload = RechartsSankeyNode & { color?: string }
+
 function ThemedSankeyNode(props: SankeyNodeProps) {
-  const { x, y, width, height, payload } = props
+  const { x, y, width, height } = props
+  const payload = props.payload as ThemedNodePayload
   const fill = payload?.color ?? "var(--secondary)"
   const isSink = (payload?.sourceLinks?.length ?? 0) === 0
   const isSource = (payload?.targetLinks?.length ?? 0) === 0
@@ -568,7 +568,7 @@ function CategoryHealthCard({
   baselineMonths,
   onBaselineChange,
 }: {
-  data: CategoryHealth[]
+  data: CategoryHealthEntry[]
   currency: string
   baselineMonths: number
   onBaselineChange: (value: number) => void

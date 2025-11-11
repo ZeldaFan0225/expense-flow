@@ -63,7 +63,7 @@ export async function updateRecurringExpense(
     where: { id, userId },
   })
 
-  const updates: Prisma.RecurringExpenseUpdateInput = {}
+  const updates: Prisma.RecurringExpenseUncheckedUpdateInput = {}
 
   if (data.categoryId !== undefined) {
     updates.categoryId = data.categoryId
@@ -90,13 +90,10 @@ export async function updateRecurringExpense(
     return mapTemplate(existing)
   }
 
-  const result = await prisma.recurringExpense.updateMany({
-    where: { id, userId },
+  await prisma.recurringExpense.update({
+    where: { id },
     data: updates,
   })
-  if (result.count === 0) {
-    throw new Error("Recurring expense not found")
-  }
   const fresh = await prisma.recurringExpense.findFirstOrThrow({
     where: { id, userId },
   })

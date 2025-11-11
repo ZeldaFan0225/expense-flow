@@ -4,6 +4,7 @@ import {
   setDate,
   startOfMonth,
 } from "date-fns"
+import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
 import { decryptNumber, encryptNumber, serializeEncrypted } from "@/lib/encryption"
 
@@ -16,6 +17,10 @@ function clampToMonth(date: Date, day: number) {
 function getNextDueDate(lastGenerated: Date | null, dueDay: number) {
   const base = lastGenerated ? addMonths(lastGenerated, 1) : new Date()
   return clampToMonth(base, dueDay)
+}
+
+function carryEncrypted(value: Prisma.JsonValue) {
+  return value as Prisma.InputJsonValue
 }
 
 export async function materializeRecurringExpenses(userId: string) {
@@ -34,13 +39,13 @@ export async function materializeRecurringExpenses(userId: string) {
           categoryId: template.categoryId,
           occurredOn: nextDue,
           recurringSourceId: template.id,
-          amountEncrypted: template.amountEncrypted,
+          amountEncrypted: carryEncrypted(template.amountEncrypted),
           impactAmountEncrypted: serializeEncrypted(
             encryptNumber(
               decryptNumber(template.amountEncrypted) / (template.splitBy || 1)
             )
           ),
-          descriptionEncrypted: template.descriptionEncrypted,
+          descriptionEncrypted: carryEncrypted(template.descriptionEncrypted),
         },
       })
 
@@ -70,8 +75,8 @@ export async function materializeRecurringIncomes(userId: string) {
           userId,
           occurredOn: nextDue,
           recurringSourceId: template.id,
-          amountEncrypted: template.amountEncrypted,
-          descriptionEncrypted: template.descriptionEncrypted,
+          amountEncrypted: carryEncrypted(template.amountEncrypted),
+          descriptionEncrypted: carryEncrypted(template.descriptionEncrypted),
         },
       })
 

@@ -8,13 +8,19 @@ import {
 } from "@/lib/services/expense-service"
 
 type Params = {
-  params: { id: string }
+  params: Promise<{ id: string }>
 }
 
-export async function GET(request: NextRequest, { params }: Params) {
+async function resolveId(context: Params) {
+  const { id } = await context.params
+  return id
+}
+
+export async function GET(request: NextRequest, context: Params) {
   try {
     const auth = await authenticateRequest(request, ["expenses_read"])
-    const expense = await getExpense(auth.userId, params.id)
+    const id = await resolveId(context)
+    const expense = await getExpense(auth.userId, id)
     if (!expense) {
       return json({ error: "Not found" }, { status: 404 })
     }
@@ -24,21 +30,23 @@ export async function GET(request: NextRequest, { params }: Params) {
   }
 }
 
-export async function PATCH(request: NextRequest, { params }: Params) {
+export async function PATCH(request: NextRequest, context: Params) {
   try {
     const auth = await authenticateRequest(request, ["expenses_write"])
     const payload = await request.json()
-    const expense = await updateExpense(auth.userId, params.id, payload)
+    const id = await resolveId(context)
+    const expense = await updateExpense(auth.userId, id, payload)
     return json(expense)
   } catch (error) {
     return handleApiError(error)
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: Params) {
+export async function DELETE(request: NextRequest, context: Params) {
   try {
     const auth = await authenticateRequest(request, ["expenses_write"])
-    await deleteExpense(auth.userId, params.id)
+    const id = await resolveId(context)
+    await deleteExpense(auth.userId, id)
     return json({ ok: true })
   } catch (error) {
     return handleApiError(error)

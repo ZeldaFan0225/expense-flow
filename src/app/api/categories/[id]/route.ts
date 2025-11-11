@@ -3,12 +3,13 @@ import { authenticateRequest } from "@/lib/api-auth"
 import { handleApiError, json } from "@/lib/http"
 import { deleteCategory } from "@/lib/services/category-service"
 
-type Params = { params: { id: string } }
+type Params = { params: Promise<{ id: string }> }
 
-export async function DELETE(request: NextRequest, { params }: Params) {
+export async function DELETE(request: NextRequest, context: Params) {
   try {
     const auth = await authenticateRequest(request, ["expenses_write"])
-    await deleteCategory(auth.userId, params.id)
+    const { id } = await context.params
+    await deleteCategory(auth.userId, id)
     return json({ ok: true })
   } catch (error) {
     return handleApiError(error)

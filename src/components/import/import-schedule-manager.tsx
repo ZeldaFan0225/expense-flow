@@ -27,12 +27,39 @@ type Schedule = {
   lastRunAt?: string | null
 }
 
+type ScheduleRecord = {
+  id: string
+  name: string
+  mode: string
+  frequency: string
+  template: string
+  sourceUrl?: string | null
+  nextRunAt?: string | null | Date
+  lastRunAt?: string | null | Date
+}
+
 type ImportScheduleManagerProps = {
-  initialSchedules: Schedule[]
+  initialSchedules: ScheduleRecord[]
+}
+
+function normalizeSchedule(record: ScheduleRecord): Schedule {
+  return {
+    ...record,
+    nextRunAt:
+      record.nextRunAt instanceof Date
+        ? record.nextRunAt.toISOString()
+        : record.nextRunAt ?? null,
+    lastRunAt:
+      record.lastRunAt instanceof Date
+        ? record.lastRunAt.toISOString()
+        : record.lastRunAt ?? null,
+  }
 }
 
 export function ImportScheduleManager({ initialSchedules }: ImportScheduleManagerProps) {
-  const [schedules, setSchedules] = React.useState(initialSchedules)
+  const [schedules, setSchedules] = React.useState(
+    initialSchedules.map((schedule) => normalizeSchedule(schedule))
+  )
   const [form, setForm] = React.useState({
     name: "",
     mode: "expenses",
@@ -58,7 +85,7 @@ export function ImportScheduleManager({ initialSchedules }: ImportScheduleManage
       })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error ?? "Failed to create schedule")
-      setSchedules((prev) => [data.schedule, ...prev])
+      setSchedules((prev) => [normalizeSchedule(data.schedule), ...prev])
       setForm({ name: "", mode: "expenses", template: "default", frequency: "monthly", sourceUrl: "" })
       showToast({
         title: "Schedule created",
@@ -99,7 +126,11 @@ export function ImportScheduleManager({ initialSchedules }: ImportScheduleManage
     })
     const data = await response.json()
     if (response.ok) {
-      setSchedules((prev) => prev.map((schedule) => (schedule.id === id ? data.schedule : schedule)))
+      setSchedules((prev) =>
+        prev.map((schedule) =>
+          schedule.id === id ? normalizeSchedule(data.schedule) : schedule
+        )
+      )
       showToast({
         title: "Schedule marked as run",
       })

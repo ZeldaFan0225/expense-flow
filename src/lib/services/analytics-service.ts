@@ -10,6 +10,16 @@ import {
 import { prisma } from "@/lib/prisma"
 import { decryptNumber, decryptString } from "@/lib/encryption"
 
+export type CategoryHealthEntry = {
+  categoryId: string
+  label: string
+  color: string
+  actual: number
+  baseline: number
+  delta: number
+  status: "over" | "under"
+}
+
 export type RangePreset =
   | "month"
   | "3m"
@@ -409,7 +419,7 @@ export async function detectSpendingAnomalies(
 export async function getCategoryHealth(
   userId: string,
   options: { month?: Date; baselineMonths?: number } = {}
-) {
+): Promise<CategoryHealthEntry[]> {
   const month = options.month ?? new Date()
   const baselineMonths = options.baselineMonths ?? 6
   const baselineStart = startOfMonth(subMonths(month, baselineMonths))
@@ -443,7 +453,7 @@ export async function getCategoryHealth(
 
   const actualSum = overview.totalExpenses || 1
 
-  const health = overview.categoryTotals.map((category) => {
+  const health: CategoryHealthEntry[] = overview.categoryTotals.map((category) => {
     const baseline = baselineTotals[category.id]
     const baselineShare = baselineSum
       ? (baseline?.value ?? 0) / baselineSum

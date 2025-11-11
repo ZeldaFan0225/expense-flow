@@ -86,6 +86,7 @@ export async function getActivityFeed(userId: string, take = 40, options?: FeedO
     title: string
     notes?: string
     timestamp: Date
+    createdAt?: Date
     totalImpact: number
     items: Array<{
       id: string
@@ -132,7 +133,7 @@ export async function getActivityFeed(userId: string, take = 40, options?: FeedO
       if (expense.occurredOn > bucket.timestamp) {
         bucket.timestamp = expense.occurredOn
       }
-      if (expense.createdAt > bucket.createdAt) {
+      if (!bucket.createdAt || expense.createdAt > bucket.createdAt) {
         bucket.createdAt = expense.createdAt
       }
     } else {
