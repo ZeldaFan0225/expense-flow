@@ -1,7 +1,9 @@
+"use client"
+
+import * as React from "react"
 import {CheckCircle, Circle, X} from "lucide-react"
 import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card"
 import {Button} from "@/components/ui/button"
-import * as React from "react"
 
 export type ChecklistItem = {
     id: string
