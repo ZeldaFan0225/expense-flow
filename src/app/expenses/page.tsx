@@ -30,7 +30,7 @@ export default async function ExpensesPage() {
     groupId: expense.group?.id ?? null,
     groupTitle: expense.group?.title ?? null,
     groupNotes: expense.group?.notes ?? null,
-    splitBy: expense.group?.splitBy ?? null,
+    splitBy: expense.group?.splitBy ?? expense.splitBy ?? null,
   }))
 
   return (

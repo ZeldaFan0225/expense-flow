@@ -11,10 +11,18 @@ import { Label } from "@/components/ui/label"
 import { formatCurrency } from "@/lib/currency"
 import { useToast } from "@/components/providers/toast-provider"
 
+const dueDayField = z
+  .string()
+  .min(1)
+  .refine((value) => {
+    const parsed = Number(value)
+    return Number.isInteger(parsed) && parsed >= 1 && parsed <= 31
+  }, "Due day must be between 1 and 31")
+
 const formSchema = z.object({
   description: z.string().min(1),
   amount: z.string().min(1),
-  dueDayOfMonth: z.string().min(1),
+  dueDayOfMonth: dueDayField,
 })
 
 type RecurringIncome = {
@@ -170,8 +178,8 @@ export function RecurringIncomeManager({
           <Field label="Amount">
             <Input type="number" step="0.01" {...form.register("amount")} />
           </Field>
-          <Field label="Due day">
-            <Input type="number" min="1" max="28" {...form.register("dueDayOfMonth")} />
+          <Field label="Due day" error={form.formState.errors.dueDayOfMonth?.message}>
+            <Input type="number" min="1" max="31" {...form.register("dueDayOfMonth")} />
           </Field>
         </form>
         <div className="divide-y rounded-2xl border">
@@ -227,14 +235,17 @@ export function RecurringIncomeManager({
 function Field({
   label,
   children,
+  error,
 }: {
   label: string
   children: React.ReactNode
+  error?: string
 }) {
   return (
     <div className="flex flex-col gap-2">
       <Label>{label}</Label>
       {children}
+      {error ? <p className="text-xs text-rose-500">{error}</p> : null}
     </div>
   )
 }

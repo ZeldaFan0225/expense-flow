@@ -105,7 +105,7 @@ export function OnboardingFlow({
         if (!incomeComplete) {
           const amountValue = Number(incomeFields.amount)
           const dueDayValue = Math.min(
-            28,
+            31,
             Math.max(1, Math.floor(Number(incomeFields.dueDay) || 1))
           )
           const incomeResponse = await fetch("/api/income/recurring", {
@@ -161,7 +161,6 @@ export function OnboardingFlow({
           body: JSON.stringify({
             description: expenseFields.description || "Sample expense",
             amount: amountValue,
-            impactAmount: amountValue,
             occurredOn: expenseFields.date,
           }),
         })
@@ -281,7 +280,7 @@ export function OnboardingFlow({
                   id="income-due-day"
                   type="number"
                   min="1"
-                  max="28"
+                  max="31"
                   value={incomeFields.dueDay}
                   onChange={(event) => handleIncomeFieldChange("dueDay", event.target.value)}
                   disabled={incomeComplete}
@@ -290,7 +289,7 @@ export function OnboardingFlow({
             </div>
             {!incomeComplete ? (
               <p className="text-xs text-muted-foreground">
-                We materialize recurring income on the selected day each month (clamped to 28).
+                We materialize recurring income on the selected day; shorter months post on the last available date.
               </p>
             ) : (
               <p className="text-xs text-emerald-500">

@@ -1,6 +1,7 @@
-import { CheckCircle, Circle } from "lucide-react"
+import { CheckCircle, Circle, X } from "lucide-react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import * as React from "react"
 
 export type ChecklistItem = {
   id: string
@@ -14,17 +15,37 @@ type OnboardingChecklistProps = {
   items: ChecklistItem[]
 }
 
+const DISMISS_KEY = "onboarding-checklist-dismissed"
+
 export function OnboardingChecklist({ items }: OnboardingChecklistProps) {
+  const [isDismissed, setIsDismissed] = React.useState(false)
+
+  React.useEffect(() => {
+    const dismissed = localStorage.getItem(DISMISS_KEY) === "true"
+    setIsDismissed(dismissed)
+  }, [])
+
+  const handleDismiss = () => {
+    localStorage.setItem(DISMISS_KEY, "true")
+    setIsDismissed(true)
+  }
+
   const remaining = items.filter((item) => !item.completed)
-  if (!remaining.length) return null
+  if (!remaining.length || isDismissed) return null
 
   return (
     <Card className="rounded-3xl border-dashed">
-      <CardHeader>
-        <CardTitle>Finish onboarding</CardTitle>
-        <p className="text-sm text-muted-foreground">
-          Complete these flows to unlock the full analytics toolkit.
-        </p>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <div>
+          <CardTitle>Finish onboarding</CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Complete these flows to unlock the full analytics toolkit.
+          </p>
+        </div>
+        <Button variant="ghost" size="sm" onClick={handleDismiss}>
+          <X className="size-4" />
+          <span className="sr-only">Dismiss</span>
+        </Button>
       </CardHeader>
       <CardContent className="space-y-3">
         {items.map((item) => (

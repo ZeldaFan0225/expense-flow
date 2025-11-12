@@ -12,34 +12,26 @@ import {
   serializeEncrypted,
 } from "@/lib/encryption"
 import { materializeRecurringExpenses } from "@/lib/recurring"
+import { calculateImpactShare } from "@/lib/expense-shares"
 
 type ExpenseWithRelations = Expense & {
   category: Category | null
   group: ExpenseGroup | null
 }
 
-function resolveImpactAmount(
-  amount: number,
-  providedImpact: number | undefined,
-  splitBy?: number | null
-) {
-  if (typeof providedImpact === "number") {
-    return providedImpact
-  }
-  if (splitBy && splitBy > 1) {
-    return amount / splitBy
-  }
-  return amount
-}
-
 function mapExpense(record: ExpenseWithRelations) {
+  const amount = decryptNumber(record.amountEncrypted)
+  const splitBy =
+    record.group?.splitBy ?? (record.splitBy ?? 1)
+  const calculatedImpactAmount = calculateImpactShare(amount, splitBy)
   return {
     id: record.id,
     occurredOn: record.occurredOn,
     category: record.category,
     recurringSourceId: record.recurringSourceId,
-    amount: decryptNumber(record.amountEncrypted),
-    impactAmount: decryptNumber(record.impactAmountEncrypted),
+    amount,
+    impactAmount: calculatedImpactAmount,
+    splitBy: splitBy > 1 ? splitBy : null,
     description: decryptString(record.descriptionEncrypted),
     group: record.group
       ? {
@@ -94,9 +86,7 @@ export async function createExpense(userId: string, payload: unknown) {
       occurredOn: data.occurredOn,
       categoryId: data.categoryId,
       amountEncrypted: serializeEncrypted(encryptNumber(data.amount)),
-      impactAmountEncrypted: serializeEncrypted(
-        encryptNumber(data.impactAmount ?? data.amount)
-      ),
+      splitBy: data.splitBy ?? 1,
       descriptionEncrypted: serializeEncrypted(
         encryptString(data.description)
       ),
@@ -109,7 +99,7 @@ export async function createExpense(userId: string, payload: unknown) {
 export async function updateExpense(userId: string, id: string, payload: unknown) {
   const data = expenseSchema.partial().parse(payload)
 
-  await prisma.expense.findFirstOrThrow({
+  const existing = await prisma.expense.findFirstOrThrow({
     where: { id, userId },
   })
 
@@ -122,10 +112,7 @@ export async function updateExpense(userId: string, id: string, payload: unknown
         data.amount !== undefined
           ? serializeEncrypted(encryptNumber(data.amount))
           : undefined,
-      impactAmountEncrypted:
-        data.impactAmount !== undefined
-          ? serializeEncrypted(encryptNumber(data.impactAmount))
-          : undefined,
+      splitBy: data.splitBy ?? existing.splitBy ?? 1,
       descriptionEncrypted: data.description
         ? serializeEncrypted(encryptString(data.description))
         : undefined,
@@ -176,11 +163,7 @@ export async function bulkCreateExpenses(userId: string, payload: unknown) {
           categoryId: item.categoryId,
           groupId: group?.id,
           amountEncrypted: serializeEncrypted(encryptNumber(item.amount)),
-          impactAmountEncrypted: serializeEncrypted(
-            encryptNumber(
-              resolveImpactAmount(item.amount, item.impactAmount, pendingSplitBy)
-            )
-          ),
+          splitBy: data.group ? pendingSplitBy : item.splitBy ?? 1,
           descriptionEncrypted: serializeEncrypted(
             encryptString(item.description)
           ),
@@ -253,9 +236,7 @@ export async function replaceExpenses(
             categoryId: item.categoryId,
             groupId: group?.id,
             amountEncrypted: serializeEncrypted(encryptNumber(item.amount)),
-            impactAmountEncrypted: serializeEncrypted(
-              encryptNumber(item.impactAmount ?? item.amount)
-            ),
+            splitBy: group ? data.group?.splitBy ?? 1 : item.splitBy ?? 1,
             descriptionEncrypted: serializeEncrypted(
               encryptString(item.description)
             ),
@@ -277,12 +258,15 @@ export async function summarizeExpenses(userId: string, start: Date, end: Date) 
       userId,
       occurredOn: { gte: start, lte: end },
     },
+    include: { group: true }, // Need group for splitBy
   })
 
-  return expenses.reduce(
-    (acc, expense) => acc + decryptNumber(expense.impactAmountEncrypted),
-    0
-  )
+  return expenses.reduce((acc, expense) => {
+    const amount = decryptNumber(expense.amountEncrypted)
+    const splitBy = expense.group?.splitBy ?? (expense.splitBy ?? 1)
+    const calculatedImpact = calculateImpactShare(amount, splitBy)
+    return acc + calculatedImpact
+  }, 0)
 }
 
 export async function getExpenseSuggestions(userId: string, take = 5) {

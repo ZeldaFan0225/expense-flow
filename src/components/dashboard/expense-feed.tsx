@@ -9,6 +9,7 @@ type ExpenseFeedProps = {
     description: string
     amount: number
     impactAmount: number
+    splitBy?: number | null
     category?: {
       id: string
       name: string
@@ -36,7 +37,7 @@ export function ExpenseFeed({
         <ul className="divide-y">
           {expenses.map((expense) => {
             const differs = Math.abs(expense.amount - expense.impactAmount) > 0.005
-            const splitCount = expense.group?.splitBy ?? 1
+            const splitCount = expense.group?.splitBy ?? expense.splitBy ?? 1
             const shareParts: string[] = []
             if (differs) {
               shareParts.push(`of ${formatCurrency(expense.amount, currency)} total`)

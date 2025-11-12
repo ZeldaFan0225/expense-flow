@@ -106,13 +106,13 @@ model Expense {
   userId                String
   user                  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   amountEncrypted       Json
-  impactAmountEncrypted Json
   descriptionEncrypted  Json
   occurredOn            DateTime
   categoryId            String?
   category              Category?         @relation(fields: [categoryId], references: [id])
   groupId               String?
   group                 ExpenseGroup?     @relation(fields: [groupId], references: [id])
+  splitBy               Int?              @default(1)
   recurringSourceId     String?
   recurringSource       RecurringExpense? @relation("RecurringExpenseInstances", fields: [recurringSourceId], references: [id])
   createdAt             DateTime          @default(now())

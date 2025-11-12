@@ -116,7 +116,7 @@ Every request must include either a valid browser session (GitHub OAuth via Next
 
 ### Identifiers & bodies
 - Dates use ISO-8601 strings; services coerce them into JS `Date`.
-- Amounts are numeric (USD/floating). `impactAmount` defaults to `amount` if omitted.
+- Amounts are numeric (USD/floating). `impactAmount` defaults to `amount` if omitted; provide a `splitBy` value to divide a single expense into equal shares.
 - Encrypted fields (descriptions, amounts) must always go through backend helpers; clients never send ciphertext.
 - When using API keys, include `x-api-key: exp_<prefix>_<secret>`. Scopes check per route, so e.g. hitting `/api/recurring` write endpoints requires `expenses_write`.
 - All JSON responses wrap errors as `{ error: string }` with proper HTTP status (`401`, `403`, `404`, `422`, `429`, `500`). The rate limiter sets `Retry-After` for 429s.

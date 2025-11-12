@@ -8,6 +8,7 @@ import {
 } from "date-fns"
 import { prisma } from "@/lib/prisma"
 import { decryptNumber, decryptString } from "@/lib/encryption"
+import { calculateImpactShare } from "@/lib/expense-shares"
 
 export type DailySummary = Awaited<ReturnType<typeof getDailySummary>>
 
@@ -39,31 +40,41 @@ export async function getDailySummary(userId: string, targetDate = new Date()) {
       select: {
         id: true,
         occurredOn: true,
-        impactAmountEncrypted: true,
+        amountEncrypted: true,
+        group: {
+          select: {
+            splitBy: true,
+          },
+        },
       },
       orderBy: { occurredOn: "asc" },
     }),
   ])
 
-  const totalExpenses = expenses.reduce(
-    (total, expense) => total + decryptNumber(expense.impactAmountEncrypted),
-    0
-  )
+  const totalExpenses = expenses.reduce((total, expense) => {
+    const amount = decryptNumber(expense.amountEncrypted)
+    const splitBy = expense.group?.splitBy ?? 1
+    return total + calculateImpactShare(amount, splitBy)
+  }, 0)
   const totalIncome = incomes.reduce(
     (total, income) => total + decryptNumber(income.amountEncrypted),
     0
   )
 
-  const expenseDetails = expenses.map((expense) => ({
-    id: expense.id,
-    occurredOn: expense.occurredOn.toISOString(),
-    amount: decryptNumber(expense.amountEncrypted),
-    impactAmount: decryptNumber(expense.impactAmountEncrypted),
-    description: decryptString(expense.descriptionEncrypted),
-    category: expense.category?.name ?? null,
-    categoryColor: expense.category?.color ?? null,
-    splitBy: expense.group?.splitBy ?? null,
-  }))
+  const expenseDetails = expenses.map((expense) => {
+    const amount = decryptNumber(expense.amountEncrypted)
+    const splitBy = expense.group?.splitBy ?? 1
+    return {
+      id: expense.id,
+      occurredOn: expense.occurredOn.toISOString(),
+      amount,
+      impactAmount: calculateImpactShare(amount, splitBy),
+      description: decryptString(expense.descriptionEncrypted),
+      category: expense.category?.name ?? null,
+      categoryColor: expense.category?.color ?? null,
+      splitBy: splitBy > 1 ? splitBy : null,
+    }
+  })
 
   const incomeDetails = incomes.map((income) => ({
     id: income.id,
@@ -108,11 +119,15 @@ export async function getDailySummary(userId: string, targetDate = new Date()) {
     .slice(0, 4)
     .map(({ nextDue, ...rest }) => rest)
 
-  const expenseTrend = recentExpenseTrend.map((expense) => ({
-    id: expense.id,
-    occurredOn: expense.occurredOn.toISOString(),
-    impactAmount: decryptNumber(expense.impactAmountEncrypted),
-  }))
+  const expenseTrend = recentExpenseTrend.map((expense) => {
+    const amount = decryptNumber(expense.amountEncrypted)
+    const splitBy = expense.group?.splitBy ?? 1
+    return {
+      id: expense.id,
+      occurredOn: expense.occurredOn.toISOString(),
+      impactAmount: calculateImpactShare(amount, splitBy),
+    }
+  })
 
   return {
     date: formatISO(start, { representation: "date" }),

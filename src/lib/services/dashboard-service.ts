@@ -11,6 +11,7 @@ import { listRecurringExpenses } from "@/lib/services/recurring-expense-service"
 import { listCategories, ensureDefaultCategories } from "@/lib/services/category-service"
 import { getMonthlyOverview } from "@/lib/services/analytics-service"
 import { decryptNumber } from "@/lib/encryption"
+import { calculateImpactShare } from "@/lib/expense-shares"
 
 export async function getMonthlyCashHistory(userId: string, months = 6) {
   const now = new Date()
@@ -20,6 +21,7 @@ export async function getMonthlyCashHistory(userId: string, months = 6) {
   const [expenses, incomes] = await Promise.all([
     prisma.expense.findMany({
       where: { userId, occurredOn: { gte: start, lte: end } },
+      include: { group: true },
     }),
     prisma.income.findMany({
       where: { userId, occurredOn: { gte: start, lte: end } },
@@ -31,7 +33,11 @@ export async function getMonthlyCashHistory(userId: string, months = 6) {
     const key = `${month.getFullYear()}-${month.getMonth()}`
     const expenseTotal = expenses
       .filter((expense) => `${expense.occurredOn.getFullYear()}-${expense.occurredOn.getMonth()}` === key)
-      .reduce((acc, expense) => acc + decryptNumber(expense.impactAmountEncrypted), 0)
+      .reduce((acc, expense) => {
+        const amount = decryptNumber(expense.amountEncrypted)
+        const splitBy = expense.group?.splitBy ?? 1
+        return acc + calculateImpactShare(amount, splitBy)
+      }, 0)
 
     const incomeTotal = incomes
       .filter((income) => `${income.occurredOn.getFullYear()}-${income.occurredOn.getMonth()}` === key)

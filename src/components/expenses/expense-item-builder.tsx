@@ -1,7 +1,12 @@
 "use client"
 
 import * as React from "react"
-import { useFieldArray, useForm } from "react-hook-form"
+import {
+  useFieldArray,
+  useForm,
+  type FieldErrors,
+  type Resolver,
+} from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { Button } from "@/components/ui/button"
@@ -11,6 +16,10 @@ import { Textarea } from "@/components/ui/textarea"
 import { Select } from "@/components/ui/select"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useToast } from "@/components/providers/toast-provider"
+import {
+  calculateImpactShare,
+  normalizeSplitCount,
+} from "@/lib/expense-shares"
 
 type Category = {
   id: string
@@ -22,7 +31,7 @@ type ExistingItemInput = {
   id?: string
   description: string
   amount: number
-  impactAmount?: number | null
+  splitBy?: number | null
   occurredOn: string | Date
   categoryId?: string | null
 }
@@ -33,12 +42,15 @@ type InitialGroupInput = {
   splitBy?: number | null
 }
 
+type ItemField = "description" | "amount" | "splitBy" | "occurredOn"
+type GroupField = "title" | "notes" | "splitBy"
+
 const expenseItemSchema = z.object({
-  id: z.string().cuid().optional(),
+  id: z.string().optional(),
   description: z.string().min(1, "Description required"),
   amount: z.string().min(1, "Amount required"),
-  impactAmount: z.string().optional(),
-  occurredOn: z.string().min(1),
+  splitBy: z.string().optional(),
+  occurredOn: z.string().min(1, "Date required"),
   categoryId: z.string().optional(),
 })
 
@@ -51,7 +63,6 @@ const builderSchema = z.object({
       notes: z.string().optional(),
       splitBy: z.string().optional(),
     })
-    .partial()
     .optional(),
 })
 
@@ -104,7 +115,7 @@ export function ExpenseItemBuilder({
   }, [initialItems, initialGroup])
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(builderSchema),
+    resolver: zodResolver(builderSchema) as Resolver<FormValues>,
     defaultValues,
   })
 
@@ -118,7 +129,8 @@ export function ExpenseItemBuilder({
     handleSubmit,
     watch,
     reset,
-    formState: { isSubmitting },
+    setFocus,
+    formState: { isSubmitting, errors },
   } = form
 
   const { fields, append, remove } = useFieldArray({
@@ -138,10 +150,28 @@ export function ExpenseItemBuilder({
           splitBy: "1",
         })
       }
+      setTimeout(() => setFocus("group.title"), 0)
     } else {
       form.setValue("group", undefined)
     }
   }, [groupEnabled, form])
+
+  const getItemError = (index: number, field: ItemField) => {
+    const fieldError =
+      (errors.items?.[index] as Partial<
+        Record<ItemField, { message?: string }>
+      > | undefined)?.[field]
+    const message = fieldError?.message
+    return typeof message === "string" ? message : undefined
+  }
+
+  const getGroupError = (field: GroupField) => {
+    const fieldError = (errors.group as Partial<
+      Record<GroupField, { message?: string }>
+    > | undefined)?.[field]
+    const message = fieldError?.message
+    return typeof message === "string" ? message : undefined
+  }
 
   const requestCategorySuggestion = React.useCallback(
     async (fieldId: string, description: string) => {
@@ -178,6 +208,10 @@ export function ExpenseItemBuilder({
 
   const expenseItems = fields.map((field, index) => {
     const descriptionField = register(`items.${index}.description` as const)
+    const descriptionError = getItemError(index, "description")
+    const amountError = getItemError(index, "amount")
+    const splitError = getItemError(index, "splitBy")
+    const occurredOnError = getItemError(index, "occurredOn")
     return (
       <div
         key={field.id}
@@ -206,6 +240,7 @@ export function ExpenseItemBuilder({
             <Input
               placeholder="Team dinner"
               {...descriptionField}
+              aria-invalid={Boolean(descriptionError)}
               onBlur={(event) => {
                 descriptionField.onBlur(event)
                 requestCategorySuggestion(field.id, event.target.value)
@@ -217,6 +252,7 @@ export function ExpenseItemBuilder({
               }
               suggestions={suggestions}
             />
+            <ErrorText message={descriptionError} />
           </div>
           <div className="space-y-2">
             <Label>Category</Label>
@@ -245,35 +281,48 @@ export function ExpenseItemBuilder({
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div
+          className={
+            groupEnabled ? "grid gap-4 md:grid-cols-2" : "grid gap-4 md:grid-cols-3"
+          }
+        >
           <Field
             label="Amount"
+            error={amountError}
             input={
               <Input
                 type="number"
                 step="0.01"
                 min="0"
+                aria-invalid={Boolean(amountError)}
                 {...register(`items.${index}.amount` as const)}
               />
             }
           />
-          <Field
-            label="Impact amount"
-            hint="Optional, overrides analytics value"
-            input={
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                {...register(`items.${index}.impactAmount` as const)}
-              />
-            }
-          />
+          {!groupEnabled ? (
+            <Field
+              label="Split by"
+              hint="Divide this amount across equal shares"
+              error={splitError}
+              input={
+                <Input
+                  type="number"
+                  min="1"
+                  max="10"
+                  step="1"
+                  aria-invalid={Boolean(splitError)}
+                  {...register(`items.${index}.splitBy` as const)}
+                />
+              }
+            />
+          ) : null}
           <Field
             label="Date"
+            error={occurredOnError}
             input={
               <Input
                 type="date"
+                aria-invalid={Boolean(occurredOnError)}
                 {...register(`items.${index}.occurredOn` as const)}
               />
             }
@@ -288,53 +337,93 @@ export function ExpenseItemBuilder({
       await onSubmitOverride(values)
       return
     }
+
+    const isEditing = values.items.length === 1 && values.items[0].id
+
     try {
-      const payload = {
-        items: values.items.map((item) => ({
+      if (isEditing) {
+        // --- EDIT LOGIC ---
+        const item = values.items[0]
+        const splitValue = normalizeSplitCount(item.splitBy)
+        const payload = {
           description: item.description,
           amount: Number(item.amount),
-          impactAmount: item.impactAmount
-            ? Number(item.impactAmount)
-            : undefined,
           occurredOn: new Date(item.occurredOn),
           categoryId: item.categoryId || undefined,
-        })),
-        group:
-          groupEnabled && values.group
-            ? {
-                title: values.group.title ?? "",
-                notes: values.group.notes,
-                splitBy: Number(values.group.splitBy ?? "1"),
-              }
-            : undefined,
-      }
+          splitBy: splitValue > 1 ? splitValue : undefined,
+        }
 
-      const response = await fetch("/api/expenses/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
+        const response = await fetch(`/api/expenses/${item.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
 
-      if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error ?? "Failed to create expenses")
-      }
+        if (!response.ok) {
+          const data = await response.json()
+          throw new Error(data.error ?? "Failed to update expense")
+        }
 
-      if (!disableAutoReset) {
-        reset({
-          items: [createDefaultItem()],
-          groupEnabled: false,
-          group: undefined,
+        showToast({
+          title: "Expense updated",
+          variant: "success",
+        })
+      } else {
+        // --- CREATE LOGIC ---
+        const isGroupEnabled = Boolean(values.groupEnabled)
+        const payload = {
+          items: values.items.map((item) => {
+            const amountValue = Number(item.amount)
+            const splitValue = isGroupEnabled
+              ? 1
+              : normalizeSplitCount(item.splitBy)
+
+            return {
+              description: item.description,
+              amount: amountValue,
+              splitBy:
+                !isGroupEnabled && splitValue > 1 ? splitValue : undefined,
+              occurredOn: new Date(item.occurredOn),
+              categoryId: item.categoryId || undefined,
+            }
+          }),
+          group:
+            isGroupEnabled && values.group
+              ? {
+                  title: values.group.title ?? "",
+                  notes: values.group.notes,
+                  splitBy: Number(values.group.splitBy ?? "1"),
+                }
+              : undefined,
+        }
+
+        const response = await fetch("/api/expenses/bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        })
+
+        if (!response.ok) {
+          const data = await response.json()
+          throw new Error(data.error ?? "Failed to create expenses")
+        }
+
+        if (!disableAutoReset) {
+          reset({
+            items: [createDefaultItem()],
+            groupEnabled: false,
+            group: undefined,
+          })
+        }
+        showToast({
+          title: "Expenses recorded",
+          description: `${values.items.length} item(s) saved`,
+          variant: "success",
         })
       }
-      showToast({
-        title: "Expenses recorded",
-        description: `${values.items.length} item(s) saved`,
-        variant: "success",
-      })
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : "Failed to create expenses"
+        err instanceof Error ? err.message : "Failed to save expenses"
       showToast({
         title: "Failed to save expenses",
         description: message,
@@ -343,13 +432,59 @@ export function ExpenseItemBuilder({
     }
   }
 
+  const onInvalid = React.useCallback(
+    (errors: FieldErrors<FormValues>) => {
+      console.log(errors)
+      const messages: string[] = []
+
+      errors.items?.forEach?.((itemError, index) => {
+        if (!itemError) return
+        if (itemError.description?.message) {
+          messages.push(`Expense ${index + 1}: ${itemError.description.message}`)
+        }
+        if (itemError.amount?.message) {
+          messages.push(`Expense ${index + 1}: ${itemError.amount.message}`)
+        }
+        if (itemError.occurredOn?.message) {
+          messages.push(`Expense ${index + 1}: ${itemError.occurredOn.message}`)
+        }
+        if (itemError.splitBy?.message) {
+          messages.push(`Expense ${index + 1}: ${itemError.splitBy.message}`)
+        }
+      })
+
+      if (errors.group?.title?.message) {
+        messages.push(`Group: ${errors.group.title.message}`)
+      }
+      if (errors.group?.splitBy?.message) {
+        messages.push(`Group: ${errors.group.splitBy.message}`)
+      }
+
+      const description =
+        messages.length > 0
+          ? messages.join("; ")
+          : "Fill in every required value before saving."
+
+      showToast({
+        title: "Please fix the errors",
+        description,
+        variant: "destructive",
+      })
+    },
+    [showToast]
+  )
+
+  const groupTitleError = getGroupError("title")
+  const groupSplitError = getGroupError("splitBy")
+  const groupNotesError = getGroupError("notes")
+
   return (
     <Card className="rounded-3xl">
       <CardHeader>
         <CardTitle>Build up to 20 expenses at once</CardTitle>
       </CardHeader>
       <CardContent className="space-y-6">
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+        <form onSubmit={handleSubmit(onSubmit, onInvalid)} className="space-y-6">
           <div className="space-y-4">{expenseItems}</div>
 
           <div className="rounded-2xl border p-4">
@@ -425,15 +560,23 @@ export function ExpenseItemBuilder({
               <div className="grid gap-4 md:grid-cols-2">
                 <Field
                   label="Group title"
-                  input={<Input {...register("group.title")} />}
+                  error={groupTitleError}
+                  input={
+                    <Input
+                      {...register("group.title")}
+                      aria-invalid={Boolean(groupTitleError)}
+                    />
+                  }
                 />
                 <Field
                   label="Split by"
+                  error={groupSplitError}
                   input={
                     <Input
                       type="number"
                       min="1"
                       defaultValue="1"
+                      aria-invalid={Boolean(groupSplitError)}
                       {...register("group.splitBy")}
                     />
                   }
@@ -441,7 +584,14 @@ export function ExpenseItemBuilder({
                 <div className="md:col-span-2">
                   <Field
                     label="Notes"
-                    input={<Textarea rows={3} {...register("group.notes")} />}
+                    error={groupNotesError}
+                    input={
+                      <Textarea
+                        rows={3}
+                        {...register("group.notes")}
+                        aria-invalid={Boolean(groupNotesError)}
+                      />
+                    }
                   />
                 </div>
               </div>
@@ -462,18 +612,26 @@ function Field({
   label,
   input,
   hint,
+  error,
 }: {
   label: string
   input: React.ReactNode
   hint?: string
+  error?: string | null
 }) {
   return (
     <div className="space-y-2">
       <Label>{label}</Label>
       {input}
       {hint ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
+      <ErrorText message={error} />
     </div>
   )
+}
+
+function ErrorText({ message }: { message?: string | null }) {
+  if (!message) return null
+  return <p className="text-xs text-destructive">{message}</p>
 }
 
 function SuggestionRow({
@@ -508,6 +666,8 @@ function createDefaultItem(item?: ExistingItemInput) {
     ? new Date()
     : occurredOnDate
 
+  const normalizedSplit = normalizeSplitCount(item?.splitBy ?? 1)
+
   return {
     id: item?.id,
     description: item?.description ?? "",
@@ -515,10 +675,7 @@ function createDefaultItem(item?: ExistingItemInput) {
       typeof item?.amount === "number" && !Number.isNaN(item.amount)
         ? item.amount.toString()
         : "",
-    impactAmount:
-      typeof item?.impactAmount === "number" && !Number.isNaN(item.impactAmount)
-        ? item.impactAmount.toString()
-        : "",
+    splitBy: normalizedSplit.toString(),
     occurredOn: safeDate.toISOString().split("T")[0],
     categoryId: item?.categoryId ?? "",
   }

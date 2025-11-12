@@ -16,16 +16,19 @@ const FALLBACK_COLORS = [
   "#f43f5e",
 ]
 
-const BANK_TEMPLATES: Record<
-  string,
-  Partial<Record<"date" | "description" | "category" | "amount" | "impactAmount", string>>
-> = {
+type ImportCsvColumn =
+  | "date"
+  | "description"
+  | "category"
+  | "amount"
+  | "splitBy"
+
+const BANK_TEMPLATES: Record<string, Partial<Record<ImportCsvColumn, string>>> = {
   default: {
     date: "date",
     description: "description",
     category: "category",
     amount: "amount",
-    impactAmount: "impactamount",
   },
   monzo: {
     date: "date",
@@ -87,7 +90,7 @@ function normalizeRow(row: Record<string, string>) {
 
 function pickValue(
   row: Record<string, string>,
-  key: "date" | "description" | "category" | "amount" | "impactAmount",
+  key: ImportCsvColumn,
   template: string
 ) {
   const config = BANK_TEMPLATES[template] ?? BANK_TEMPLATES.default
@@ -111,8 +114,8 @@ function mapCsvRow(raw: Record<string, string>, template = "default") {
     description: pickValue(row, "description", template) ?? "",
     category: pickValue(row, "category", template) ?? "",
     amount: Number(pickValue(row, "amount", template) ?? 0),
-    impactAmount: pickValue(row, "impactAmount", template)
-      ? Number(pickValue(row, "impactAmount", template))
+    splitBy: pickValue(row, "splitBy", template)
+      ? Number(pickValue(row, "splitBy", template))
       : undefined,
   }
 }
@@ -151,7 +154,7 @@ export async function importStructuredRows(
         occurredOn: row.date,
         description: row.description,
         amount: row.amount,
-        impactAmount: row.impactAmount,
+        splitBy: row.splitBy,
         categoryId,
       })
     } else {

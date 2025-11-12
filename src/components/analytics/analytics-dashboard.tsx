@@ -315,7 +315,15 @@ function DeltaCard({
   delta: number
   currency: string
 }) {
-  const positive = delta >= 0
+  let deltaColorClass = ""
+  if (label === "Expenses") {
+    // For expenses: positive delta (more expenses) is bad (red), negative delta (less expenses) is good (green)
+    deltaColorClass = delta >= 0 ? "text-rose-500" : "text-emerald-500"
+  } else {
+    // For income/remaining: positive delta is good (green), negative delta is bad (red)
+    deltaColorClass = delta >= 0 ? "text-emerald-500" : "text-rose-500"
+  }
+
   return (
     <Card className="rounded-2xl">
       <CardContent className="p-6 space-y-2">
@@ -329,11 +337,9 @@ function DeltaCard({
           Prev {formatCurrency(previous, currency)}
         </p>
         <p
-          className={`text-sm font-medium ${
-            positive ? "text-emerald-500" : "text-rose-500"
-          }`}
+          className={`text-sm font-medium ${deltaColorClass}`}
         >
-          {positive ? "+" : ""}
+          {delta >= 0 ? "+" : ""}
           {formatCurrency(delta, currency)} vs last month
         </p>
       </CardContent>

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { decryptNumber, decryptString } from "@/lib/encryption"
+import { calculateImpactShare } from "@/lib/expense-shares"
 
 export type FeedEvent = {
   id: string
@@ -107,8 +108,9 @@ type GroupBucket = {
 
   for (const expense of expenses) {
     const description = decryptString(expense.descriptionEncrypted)
-    const impactAmount = decryptNumber(expense.impactAmountEncrypted)
     const actualAmount = decryptNumber(expense.amountEncrypted)
+    const splitBy = expense.group?.splitBy ?? (expense.splitBy ?? 1)
+    const impactAmount = calculateImpactShare(actualAmount, splitBy)
     const categoryName = expense.category?.name ?? "Uncategorized"
 
     if (expense.groupId && expense.group) {
@@ -127,7 +129,7 @@ type GroupBucket = {
           createdAt: expense.createdAt,
           totalImpact: 0,
           totalActual: 0,
-          splitBy: expense.group.splitBy ?? undefined,
+          splitBy: expense.group?.splitBy ?? undefined,
           items: [],
         }
         groupBuckets.set(groupId, bucket)
@@ -156,6 +158,7 @@ type GroupBucket = {
         subtitle: categoryName,
         amount: impactAmount,
         actualAmount,
+        splitBy: splitBy > 1 ? splitBy : undefined,
         category: categoryName,
         timestamp: expense.occurredOn,
         createdAt: expense.createdAt,
@@ -187,7 +190,7 @@ type GroupBucket = {
       id: income.id,
       type: "income",
       title: decryptString(income.descriptionEncrypted),
-      subtitle: isRecurringInstance ? "Recurring materialization" : undefined,
+      subtitle: isRecurringInstance ? "Recurring income" : undefined,
       amount,
       actualAmount: amount,
       recurringSourceId: income.recurringSourceId ?? undefined,

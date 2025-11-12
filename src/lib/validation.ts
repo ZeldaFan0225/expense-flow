@@ -2,7 +2,7 @@ import { z } from "zod"
 
 export const expenseSchema = z.object({
   amount: z.coerce.number().positive(),
-  impactAmount: z.coerce.number().positive().optional(),
+  splitBy: z.coerce.number().int().min(1).max(10).optional(),
   description: z.string().min(1).max(120),
   occurredOn: z.coerce.date(),
   categoryId: z.string().cuid().optional(),
@@ -23,7 +23,7 @@ export const recurringExpenseSchema = z.object({
   amount: z.coerce.number().positive(),
   description: z.string().min(1).max(120),
   categoryId: z.string().cuid().optional(),
-  dueDayOfMonth: z.coerce.number().int().min(1).max(28).default(1),
+  dueDayOfMonth: z.coerce.number().int().min(1).max(31).default(1),
   splitBy: z.coerce.number().int().min(1).max(10).default(1),
   isActive: z.coerce.boolean().optional(),
 })
@@ -54,7 +54,7 @@ export const incomeUpdateSchema = z.object({
 export const recurringIncomeSchema = z.object({
   amount: z.coerce.number().positive(),
   description: z.string().min(1).max(120),
-  dueDayOfMonth: z.coerce.number().int().min(1).max(28).default(1),
+  dueDayOfMonth: z.coerce.number().int().min(1).max(31).default(1),
   isActive: z.coerce.boolean().optional(),
 })
 
@@ -112,7 +112,7 @@ export const importRowSchema = z.object({
   category: z.string().optional(),
   categoryId: z.string().optional(),
   amount: z.coerce.number(),
-  impactAmount: z.coerce.number().optional(),
+  splitBy: z.coerce.number().int().min(1).max(10).optional(),
 })
 
 export const importScheduleSchema = z.object({

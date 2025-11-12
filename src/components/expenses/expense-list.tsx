@@ -7,6 +7,10 @@ import { Button } from "@/components/ui/button"
 import { formatCurrency } from "@/lib/currency"
 import { useToast } from "@/components/providers/toast-provider"
 import { ExpenseItemBuilder, type ExpenseItemBuilderValues } from "@/components/expenses/expense-item-builder"
+import {
+  calculateImpactShare,
+  normalizeSplitCount,
+} from "@/lib/expense-shares"
 
 type ExpenseRow = {
   id: string
@@ -46,6 +50,7 @@ type EditingContext = {
 }
 
 function mapApiExpenseToRow(payload: any): ExpenseRow {
+  const splitBy = payload.group?.splitBy ?? payload.splitBy ?? 1
   return {
     id: payload.id,
     description: payload.description,
@@ -57,7 +62,7 @@ function mapApiExpenseToRow(payload: any): ExpenseRow {
     groupId: payload.group?.id ?? null,
     groupTitle: payload.group?.title ?? null,
     groupNotes: payload.group?.notes ?? null,
-    splitBy: payload.group?.splitBy ?? null,
+    splitBy: splitBy > 1 ? splitBy : null,
   }
 }
 
@@ -139,15 +144,21 @@ export function ExpenseList({
       try {
         const payload = {
           expenseIds: editingContext.expenseIds,
-          items: values.items.map((item) => ({
-            description: item.description,
-            amount: Number(item.amount),
-            impactAmount: item.impactAmount
-              ? Number(item.impactAmount)
-              : undefined,
-            occurredOn: new Date(item.occurredOn),
-            categoryId: item.categoryId || undefined,
-          })),
+          items: values.items.map((item) => {
+            const amountValue = Number(item.amount)
+            const splitValue =
+              values.groupEnabled && values.group
+                ? 1
+                : normalizeSplitCount(item.splitBy)
+            return {
+              description: item.description,
+              amount: amountValue,
+              splitBy:
+                !values.groupEnabled && splitValue > 1 ? splitValue : undefined,
+              occurredOn: new Date(item.occurredOn),
+              categoryId: item.categoryId || undefined,
+            }
+          }),
           group:
             values.groupEnabled && values.group
               ? {
@@ -201,7 +212,7 @@ export function ExpenseList({
       id: item.id,
       description: item.description,
       amount: item.amount,
-      impactAmount: item.impactAmount,
+      splitBy: item.splitBy ?? 1,
       occurredOn: item.occurredOn,
       categoryId: item.categoryId ?? undefined,
     }))

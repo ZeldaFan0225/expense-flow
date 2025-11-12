@@ -48,6 +48,7 @@ const endpointGroups: EndpointGroup[] = [
     occurredOn: string
     amount: number
     impactAmount: number
+    splitBy?: number | null
     description: string
     categoryId: string | null
     recurringSourceId?: string | null
@@ -63,6 +64,7 @@ const endpointGroups: EndpointGroup[] = [
   occurredOn: string // ISO date
   amount: number
   impactAmount?: number
+  splitBy?: number
   description: string
   categoryId?: string
 }`,
@@ -71,6 +73,7 @@ const endpointGroups: EndpointGroup[] = [
   occurredOn: string
   amount: number
   impactAmount: number
+  splitBy?: number | null
   description: string
   categoryId: string | null
   recurringSourceId?: string | null
@@ -86,6 +89,7 @@ const endpointGroups: EndpointGroup[] = [
     occurredOn: string
     amount: number
     impactAmount?: number
+    splitBy?: number
     description: string
     categoryId?: string
   }>
@@ -114,6 +118,7 @@ const endpointGroups: EndpointGroup[] = [
   occurredOn?: string
   amount?: number
   impactAmount?: number
+  splitBy?: number
   description?: string
   categoryId?: string
 }`,
@@ -122,6 +127,7 @@ const endpointGroups: EndpointGroup[] = [
   occurredOn: string
   amount: number
   impactAmount: number
+  splitBy?: number | null
   description: string
   categoryId: string | null
   recurringSourceId?: string | null
@@ -143,6 +149,7 @@ const endpointGroups: EndpointGroup[] = [
   occurredOn: string
   amount: number
   impactAmount: number
+  splitBy?: number | null
   description: string
   categoryId: string | null
   recurringSourceId?: string | null
@@ -202,7 +209,7 @@ const endpointGroups: EndpointGroup[] = [
   },
   {
     title: "Recurring expenses",
-    description: "Template endpoints that auto-materialize expenses.",
+    description: "Template endpoints that auto-materialize expenses (when a month is shorter than the chosen day, posting occurs on that month’s final day).",
     endpoints: [
       {
         method: "GET",
@@ -229,7 +236,7 @@ const endpointGroups: EndpointGroup[] = [
         request: `{
   description: string
   amount: number
-  dueDayOfMonth: number // 1-28
+  dueDayOfMonth: number // 1-31
   splitBy?: number
   categoryId?: string
 }`,
@@ -273,7 +280,7 @@ const endpointGroups: EndpointGroup[] = [
   },
   {
     title: "Income",
-    description: "Single and recurring income endpoints (`income:write`).",
+    description: "Single and recurring income endpoints (`income:write`). Recurring templates follow the same “use the last day when shorter” rule as expenses.",
     endpoints: [
       {
         method: "POST",
@@ -326,7 +333,7 @@ const endpointGroups: EndpointGroup[] = [
         request: `{
   description: string
   amount: number
-  dueDayOfMonth: number // 1-28
+  dueDayOfMonth: number // 1-31
 }`,
       },
       {
@@ -565,6 +572,7 @@ const endpointGroups: EndpointGroup[] = [
       description: string
       amount: number
       impactAmount: number
+      splitBy?: number | null
       category: string | null
       categoryColor: string | null
     }>

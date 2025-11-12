@@ -6,7 +6,6 @@ import {
 } from "date-fns"
 import type { Prisma } from "@prisma/client"
 import { prisma } from "@/lib/prisma"
-import { decryptNumber, encryptNumber, serializeEncrypted } from "@/lib/encryption"
 
 function clampToMonth(date: Date, day: number) {
   const monthStart = startOfMonth(date)
@@ -40,11 +39,7 @@ export async function materializeRecurringExpenses(userId: string) {
           occurredOn: nextDue,
           recurringSourceId: template.id,
           amountEncrypted: carryEncrypted(template.amountEncrypted),
-          impactAmountEncrypted: serializeEncrypted(
-            encryptNumber(
-              decryptNumber(template.amountEncrypted) / (template.splitBy || 1)
-            )
-          ),
+          splitBy: template.splitBy,
           descriptionEncrypted: carryEncrypted(template.descriptionEncrypted),
         },
       })

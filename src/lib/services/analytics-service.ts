@@ -9,6 +9,7 @@ import {
 } from "date-fns"
 import { prisma } from "@/lib/prisma"
 import { decryptNumber, decryptString } from "@/lib/encryption"
+import { calculateImpactShare } from "@/lib/expense-shares"
 
 export type CategoryHealthEntry = {
   categoryId: string
@@ -132,17 +133,18 @@ export async function getMonthlyOverview(
   const [expenses, incomes] = await Promise.all([
     prisma.expense.findMany({
       where: { userId, occurredOn: { gte: start, lte: end } },
-      include: { category: true },
+      include: { category: true, group: true },
     }),
     prisma.income.findMany({
       where: { userId, occurredOn: { gte: start, lte: end } },
     }),
   ])
 
-  const totalExpenses = expenses.reduce(
-    (acc, expense) => acc + decryptNumber(expense.impactAmountEncrypted),
-    0
-  )
+  const totalExpenses = expenses.reduce((acc, expense) => {
+    const amount = decryptNumber(expense.amountEncrypted)
+    const splitBy = expense.group?.splitBy ?? 1
+    return acc + calculateImpactShare(amount, splitBy)
+  }, 0)
   const totalIncome = incomes.reduce(
     (acc, income) => acc + decryptNumber(income.amountEncrypted),
     0
@@ -167,7 +169,9 @@ export async function getMonthlyOverview(
       color: descriptor.color,
       value: 0,
     }
-    acc[key].value += decryptNumber(expense.impactAmountEncrypted)
+    const amount = decryptNumber(expense.amountEncrypted)
+    const splitBy = expense.group?.splitBy ?? 1
+    acc[key].value += calculateImpactShare(amount, splitBy)
     return acc
   }, {})
 
@@ -197,6 +201,7 @@ export async function getAvailableBalanceSeries(
         userId,
         occurredOn: { gte: range.start, lte: range.end },
       },
+      include: { group: true },
     }),
     prisma.income.findMany({
       where: {
@@ -209,8 +214,9 @@ export async function getAvailableBalanceSeries(
   const expenseByMonth = expenses.reduce<Record<string, number>>(
     (acc, expense) => {
       const key = monthKey(expense.occurredOn)
-      acc[key] =
-        (acc[key] ?? 0) + decryptNumber(expense.impactAmountEncrypted)
+      const amount = decryptNumber(expense.amountEncrypted)
+      const splitBy = expense.group?.splitBy ?? 1
+      acc[key] = (acc[key] ?? 0) + calculateImpactShare(amount, splitBy)
       return acc
     },
     {}
@@ -276,21 +282,24 @@ export async function exportSpendingCsv(
 
   const expenses = await prisma.expense.findMany({
     where: { userId, occurredOn: { gte: start, lte: end } },
-    include: { category: true },
+    include: { category: true, group: true },
     orderBy: { occurredOn: "desc" },
   })
 
   const rows = [
     "date,description,category,amount,impactAmount",
-    ...expenses.map((expense) =>
-      [
+    ...expenses.map((expense) => {
+      const amount = decryptNumber(expense.amountEncrypted)
+      const splitBy = expense.group?.splitBy ?? 1
+      const impactAmount = calculateImpactShare(amount, splitBy)
+      return [
         expense.occurredOn.toISOString(),
         `"${decryptString(expense.descriptionEncrypted).replace(/"/g, '""')}"`,
         expense.category?.name ?? "Uncategorized",
-        decryptNumber(expense.amountEncrypted).toFixed(2),
-        decryptNumber(expense.impactAmountEncrypted).toFixed(2),
+        amount.toFixed(2),
+        impactAmount.toFixed(2),
       ].join(",")
-    ),
+    }),
   ]
 
   return rows.join("\n")
@@ -352,7 +361,7 @@ export async function detectSpendingAnomalies(
 
   const expenses = await prisma.expense.findMany({
     where: { userId, occurredOn: { gte: start, lte: end } },
-    include: { category: true },
+    include: { category: true, group: true },
   })
 
   const grouped = new Map<
@@ -374,10 +383,12 @@ export async function detectSpendingAnomalies(
     }
     const month = monthKey(startOfMonth(expense.occurredOn))
     const bucket = grouped.get(key)!
+    const amount = decryptNumber(expense.amountEncrypted)
+    const splitBy = expense.group?.splitBy ?? 1
+    const impactAmount = calculateImpactShare(amount, splitBy)
     bucket.months.set(
       month,
-      (bucket.months.get(month) ?? 0) +
-        decryptNumber(expense.impactAmountEncrypted)
+      (bucket.months.get(month) ?? 0) + impactAmount
     )
   }
 
@@ -432,7 +443,7 @@ export async function getCategoryHealth(
         userId,
         occurredOn: { gte: baselineStart, lte: baselineEnd },
       },
-      include: { category: true },
+      include: { category: true, group: true },
     }),
   ])
 
@@ -442,7 +453,9 @@ export async function getCategoryHealth(
     const descriptor = ensureCategoryDescriptor(expense)
     const key = descriptor.id
     acc[key] = acc[key] || { descriptor, value: 0 }
-    acc[key].value += decryptNumber(expense.impactAmountEncrypted)
+    const amount = decryptNumber(expense.amountEncrypted)
+    const splitBy = expense.group?.splitBy ?? 1
+    acc[key].value += calculateImpactShare(amount, splitBy)
     return acc
   }, {})
 

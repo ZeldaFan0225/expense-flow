@@ -51,7 +51,7 @@ const formSchema = z.object({
   description: z.string().min(1, "Description is required"),
   amount: amountField,
   categoryId: z.union([z.string().cuid(), z.literal("")]).optional(),
-  dueDayOfMonth: boundedInteger(1, 28, "Due day"),
+  dueDayOfMonth: boundedInteger(1, 31, "Due day"),
   splitBy: boundedInteger(1, 10, "Split by"),
 })
 
@@ -260,12 +260,13 @@ export function RecurringManager({
             </Field>
             <Field
               label="Due day"
+              hint="Posts on this day (or the month's final day if shorter)"
               error={form.formState.errors.dueDayOfMonth?.message}
             >
               <Input
                 type="number"
                 min="1"
-                max="28"
+                max="31"
                 step="1"
                 {...form.register("dueDayOfMonth")}
               />

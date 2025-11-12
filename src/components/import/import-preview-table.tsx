@@ -8,7 +8,7 @@ export type PreviewRow = {
   description: string
   category?: string
   amount: number
-  impactAmount?: number
+  splitBy?: number
 }
 
 type ImportPreviewTableProps = {
@@ -27,7 +27,7 @@ export function ImportPreviewTable({ rows, onChange, onRemove }: ImportPreviewTa
         <Label>Description</Label>
         <Label>Category</Label>
         <Label>Amount</Label>
-        <Label>Impact</Label>
+        <Label>Split</Label>
         <span />
       </div>
       <div className="space-y-3">
@@ -52,17 +52,20 @@ export function ImportPreviewTable({ rows, onChange, onRemove }: ImportPreviewTa
               value={row.amount}
               onChange={(event) => onChange(row.id, { amount: Number(event.target.value) })}
             />
-            <Input
-              type="number"
-              value={row.impactAmount ?? ""}
-              onChange={(event) =>
-                onChange(row.id, {
-                  impactAmount: event.target.value
-                    ? Number(event.target.value)
-                    : undefined,
-                })
-              }
-            />
+          <Input
+            type="number"
+            min="1"
+            max="10"
+            step="1"
+            value={row.splitBy ?? ""}
+            onChange={(event) =>
+              onChange(row.id, {
+                splitBy: event.target.value
+                  ? Number(event.target.value)
+                  : undefined,
+              })
+            }
+          />
             <Button
               type="button"
               variant="ghost"
