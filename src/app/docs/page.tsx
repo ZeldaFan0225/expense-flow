@@ -50,7 +50,8 @@ const endpointGroups: EndpointGroup[] = [
     impactAmount: number
     splitBy?: number | null
     description: string
-    categoryId: string | null
+    category: { id: string, name: string, color: string } | null
+    group: { id: string, title: string, notes: string, splitBy: number } | null
     recurringSourceId?: string | null
   }>
 }`,
@@ -63,7 +64,6 @@ const endpointGroups: EndpointGroup[] = [
                 request: `{
   occurredOn: string // ISO date
   amount: number
-  impactAmount?: number
   splitBy?: number
   description: string
   categoryId?: string
@@ -75,7 +75,8 @@ const endpointGroups: EndpointGroup[] = [
   impactAmount: number
   splitBy?: number | null
   description: string
-  categoryId: string | null
+  category: { id: string, name: string, color: string } | null
+  group: { id: string, title: string, notes: string, splitBy: number } | null
   recurringSourceId?: string | null
 }`,
             },
@@ -88,7 +89,6 @@ const endpointGroups: EndpointGroup[] = [
   items: Array<{
     occurredOn: string
     amount: number
-    impactAmount?: number
     splitBy?: number
     description: string
     categoryId?: string
@@ -99,15 +99,18 @@ const endpointGroups: EndpointGroup[] = [
     splitBy?: number
   }
 }`,
-                response: `Array<{
-  id: string
-  occurredOn: string
-  amount: number
-  impactAmount: number
-  description: string
-  categoryId: string | null
-  recurringSourceId?: string | null
-}>`,
+                response: `{
+  expenses: Array<{
+    id: string
+    occurredOn: string
+    amount: number
+    impactAmount: number
+    description: string
+    category: { id: string, name: string, color: string } | null
+    group: { id: string, title: string, notes: string, splitBy: number } | null
+    recurringSourceId?: string | null
+  }>
+}`,
             },
             {
                 method: "PATCH",
@@ -117,7 +120,6 @@ const endpointGroups: EndpointGroup[] = [
                 request: `{
   occurredOn?: string
   amount?: number
-  impactAmount?: number
   splitBy?: number
   description?: string
   categoryId?: string
@@ -129,7 +131,8 @@ const endpointGroups: EndpointGroup[] = [
   impactAmount: number
   splitBy?: number | null
   description: string
-  categoryId: string | null
+  category: { id: string, name: string, color: string } | null
+  group: { id: string, title: string, notes: string, splitBy: number } | null
   recurringSourceId?: string | null
 }`,
             },
@@ -138,6 +141,9 @@ const endpointGroups: EndpointGroup[] = [
                 path: "/api/expenses/:id",
                 scope: "expenses:write",
                 description: "Remove an expense.",
+                response: `{
+  ok: true
+}`,
             },
             {
                 method: "GET",
@@ -151,7 +157,8 @@ const endpointGroups: EndpointGroup[] = [
   impactAmount: number
   splitBy?: number | null
   description: string
-  categoryId: string | null
+  category: { id: string, name: string, color: string } | null
+  group: { id: string, title: string, notes: string, splitBy: number } | null
   recurringSourceId?: string | null
 }`,
             },
@@ -198,12 +205,20 @@ const endpointGroups: EndpointGroup[] = [
   name: string
   color: string
 }`,
+                response: `{
+  id: string
+  name: string
+  color: string
+}`,
             },
             {
                 method: "DELETE",
                 path: "/api/categories/:id",
                 scope: "expenses:write",
                 description: "Delete a category (expenses fall back to uncategorized).",
+                response: `{
+  ok: true
+}`,
             },
         ],
     },
@@ -218,13 +233,14 @@ const endpointGroups: EndpointGroup[] = [
                 description: "List recurring expense templates.",
                 response: `{
   templates: Array<{
-  id: string
-  description: string
-  amount: number
-  dueDayOfMonth: number
-  splitBy: number
-  isActive: boolean
-  categoryId: string | null
+    id: string
+    description: string
+    amount: number
+    dueDayOfMonth: number
+    splitBy: number
+    isActive: boolean
+    categoryId: string | null
+    lastGeneratedOn: string | null
   }>
 }`,
             },
@@ -239,6 +255,17 @@ const endpointGroups: EndpointGroup[] = [
   dueDayOfMonth: number // 1-31
   splitBy?: number
   categoryId?: string
+  isActive?: boolean
+}`,
+                response: `{
+  id: string
+  description: string
+  amount: number
+  dueDayOfMonth: number
+  splitBy: number
+  isActive: boolean
+  categoryId: string | null
+  lastGeneratedOn: string | null
 }`,
             },
             {
@@ -246,6 +273,16 @@ const endpointGroups: EndpointGroup[] = [
                 path: "/api/recurring/:id",
                 scope: "expenses:write",
                 description: "Toggle template active state.",
+                response: `{
+  id: string
+  description: string
+  amount: number
+  dueDayOfMonth: number
+  splitBy: number
+  isActive: boolean
+  categoryId: string | null
+  lastGeneratedOn: string | null
+}`,
             },
             {
                 method: "PATCH",
@@ -268,6 +305,7 @@ const endpointGroups: EndpointGroup[] = [
   splitBy: number
   isActive: boolean
   categoryId: string | null
+  lastGeneratedOn: string | null
 }`,
             },
             {
@@ -275,6 +313,9 @@ const endpointGroups: EndpointGroup[] = [
                 path: "/api/recurring/:id",
                 scope: "expenses:write",
                 description: "Delete a recurring template.",
+                response: `{
+  ok: true
+}`,
             },
         ],
     },
@@ -292,6 +333,12 @@ const endpointGroups: EndpointGroup[] = [
   amount: number
   occurredOn: string
 }`,
+                response: `{
+  id: string
+  occurredOn: string
+  amount: number
+  description: string
+}`,
             },
             {
                 method: "PATCH",
@@ -303,12 +350,21 @@ const endpointGroups: EndpointGroup[] = [
   amount?: number
   occurredOn?: string
 }`,
+                response: `{
+  id: string
+  occurredOn: string
+  amount: number
+  description: string
+}`,
             },
             {
                 method: "DELETE",
                 path: "/api/income/:id",
                 scope: "income:write",
                 description: "Delete a single income entry.",
+                response: `{
+  ok: true
+}`,
             },
             {
                 method: "GET",
@@ -317,11 +373,11 @@ const endpointGroups: EndpointGroup[] = [
                 description: "List recurring income templates.",
                 response: `{
   templates: Array<{
-  id: string
-  description: string
-  amount: number
-  dueDayOfMonth: number
-  isActive: boolean
+    id: string
+    description: string
+    amount: number
+    dueDayOfMonth: number
+    isActive: boolean
   }>
 }`,
             },
@@ -334,6 +390,14 @@ const endpointGroups: EndpointGroup[] = [
   description: string
   amount: number
   dueDayOfMonth: number // 1-31
+  isActive?: boolean
+}`,
+                response: `{
+  id: string
+  description: string
+  amount: number
+  dueDayOfMonth: number
+  isActive: boolean
 }`,
             },
             {
@@ -360,6 +424,9 @@ const endpointGroups: EndpointGroup[] = [
                 path: "/api/income/recurring/:id",
                 scope: "income:write",
                 description: "Delete a recurring income template.",
+                response: `{
+  ok: true
+}`,
             },
         ],
     },
@@ -391,14 +458,30 @@ const endpointGroups: EndpointGroup[] = [
   }
   comparison: {
     current: {
+      start: string
+      end: string
       totalIncome: number
       totalExpenses: number
       remainingBudget: number
+      categoryTotals: Array<{
+        id: string
+        label: string
+        color: string
+        value: number
+      }>
     }
     previous: {
+      start: string
+      end: string
       totalIncome: number
       totalExpenses: number
       remainingBudget: number
+      categoryTotals: Array<{
+        id: string
+        label: string
+        color: string
+        value: number
+      }>
     }
     deltas: {
       income: number
@@ -447,12 +530,16 @@ const endpointGroups: EndpointGroup[] = [
     subtitle?: string
     timestamp: string
     amount?: number
+    actualAmount?: number
+    splitBy?: number
+    recurringSourceId?: string
     category?: string
     items?: Array<{
       id: string
       title: string
       category?: string
       amount?: number
+      actualAmount?: number
     }>
   }>
 }`,
@@ -542,13 +629,39 @@ const endpointGroups: EndpointGroup[] = [
     delta: number
   }>
 }`,
+                response: `{
+  baseline: {
+    start: string
+    end: string
+    totalIncome: number
+    totalExpenses: number
+    remainingBudget: number
+    categoryTotals: Array<{
+      id: string
+      label: string
+      color: string
+      value: number
+    }>
+  }
+  projectedIncome: number
+  projectedExpenses: number
+  projectedRemaining: number
+  categories: Array<{
+    id: string
+    label: string
+    color: string
+    value: number
+    projected: number
+    delta: number
+  }>
+}`,
             },
             {
                 method: "GET",
                 path: "/api/export",
                 scope: "analytics:read",
                 description: "CSV export of the balance series (text/csv).",
-                query: "Same params as `/api/spending`.",
+                query: "`start`, `end` (ISO date strings, optional).",
                 response: "`string` // CSV payload",
             },
             {
@@ -599,238 +712,6 @@ const endpointGroups: EndpointGroup[] = [
             },
         ],
     },
-    {
-        title: "API keys (dashboard only)",
-        description: "Manage scoped tokens via a signed-in browser session.",
-        endpoints: [
-            {
-                method: "GET",
-                path: "/api/api-keys",
-                scope: "session",
-                description: "List existing API keys (secrets are never returned).",
-                response: `{
-  keys: Array<{
-    id: string
-    prefix: string
-    scopes: string[]
-    description?: string | null
-    expiresAt?: string | null
-    revokedAt?: string | null
-    createdAt: string
-  }>
-}`,
-            },
-            {
-                method: "POST",
-                path: "/api/api-keys",
-                scope: "session",
-                description: "Create a new API key and return the raw token once.",
-                request: `{
-  description?: string
-  scopes: string[] // e.g. ["expenses:read", "analytics:read"]
-  expiresAt?: string
-}`,
-                response: `{
-  token: string
-  record: {
-    id: string
-    prefix: string
-    scopes: string[]
-    description?: string | null
-    expiresAt?: string | null
-    revokedAt?: string | null
-    createdAt: string
-  }
-}`,
-            },
-            {
-                method: "DELETE",
-                path: "/api/api-keys/:id",
-                scope: "session",
-                description: "Revoke or delete an API key by id.",
-                response: `{
-  ok: boolean
-  action: "revoked" | "deleted"
-}`,
-            },
-        ],
-    },
-    {
-        title: "CSV import & schedules",
-        description: "Upload files or manage background import automations (session only).",
-        endpoints: [
-            {
-                method: "POST",
-                path: "/api/import",
-                scope: "session",
-                description: "Upload a CSV file and import rows immediately.",
-                request: "multipart/form-data { file: File, mode?: expenses|income, template?: string }",
-                response: `{
-  imported: number
-}`,
-            },
-            {
-                method: "POST",
-                path: "/api/import/preview",
-                scope: "session",
-                description: "Preview the first 50 normalized rows before importing.",
-                request: "multipart/form-data { file: File, mode?: expenses|income, template?: string }",
-                response: `{
-  rows: Array<{
-    id: string
-    date: string
-    description: string
-    category: string
-    amount: number
-    impactAmount?: number
-  }>
-}`,
-            },
-            {
-                method: "POST",
-                path: "/api/import/rows",
-                scope: "session",
-                description: "Send structured JSON rows instead of uploading a CSV.",
-                request: `{
-  mode?: "expenses" | "income"
-  rows: Array<{
-    date: string
-    description: string
-    amount: number
-    impactAmount?: number
-    category?: string
-    categoryId?: string
-  }>
-}`,
-                response: `{
-  imported: number
-}`,
-            },
-            {
-                method: "GET",
-                path: "/api/import/schedules",
-                scope: "session",
-                description: "List saved import schedules.",
-                response: `{
-  schedules: Array<{
-    id: string
-    name: string
-    mode: "expenses" | "income"
-    template: string
-    frequency: "weekly" | "biweekly" | "monthly" | "quarterly"
-    sourceUrl?: string | null
-    lastRunAt?: string | null
-    nextRunAt?: string | null
-    createdAt: string
-  }>
-}`,
-            },
-            {
-                method: "POST",
-                path: "/api/import/schedules",
-                scope: "session",
-                description: "Create a schedule that periodically fetches and imports CSV data.",
-                request: `{
-  name: string
-  mode: "expenses" | "income"
-  template?: string
-  frequency: "weekly" | "biweekly" | "monthly" | "quarterly"
-  sourceUrl?: string
-}`,
-                response: `{
-  schedule: {
-    id: string
-    name: string
-    mode: "expenses" | "income"
-    template: string
-    frequency: "weekly" | "biweekly" | "monthly" | "quarterly"
-    sourceUrl?: string | null
-    nextRunAt?: string | null
-  }
-}`,
-            },
-            {
-                method: "PATCH",
-                path: "/api/import/schedules/:id",
-                scope: "session",
-                description: "Update schedule metadata or frequency.",
-                request: `{
-  name?: string
-  mode?: "expenses" | "income"
-  template?: string
-  frequency?: "weekly" | "biweekly" | "monthly" | "quarterly"
-  sourceUrl?: string
-}`,
-                response: `{
-  schedule: {
-    id: string
-    name: string
-    mode: "expenses" | "income"
-    template: string
-    frequency: "weekly" | "biweekly" | "monthly" | "quarterly"
-    sourceUrl?: string | null
-    nextRunAt?: string | null
-  }
-}`,
-            },
-            {
-                method: "DELETE",
-                path: "/api/import/schedules/:id",
-                scope: "session",
-                description: "Delete a saved schedule.",
-                response: `{
-  success: boolean
-}`,
-            },
-            {
-                method: "POST",
-                path: "/api/import/schedules/:id/run",
-                scope: "session",
-                description: "Mark a schedule run complete and compute the next run timestamp.",
-                response: `{
-  schedule: {
-    id: string
-    lastRunAt?: string | null
-    nextRunAt?: string | null
-  }
-}`,
-            },
-        ],
-    },
-    {
-        title: "Settings",
-        description: "Session-only preferences for the signed-in user.",
-        endpoints: [
-            {
-                method: "PATCH",
-                path: "/api/settings",
-                scope: "session",
-                description: "Update currency, accent color, or onboarding flag.",
-                request: `{
-  defaultCurrency?: string // ISO currency code
-  accentColor?: string // hex
-  onboardingCompleted?: boolean
-}`,
-                response: `{
-  settings: {
-    id: string
-    defaultCurrency: string
-    accentColor?: string | null
-    onboardingCompleted: boolean
-  }
-}`,
-            },
-            {
-                method: "DELETE",
-                path: "/api/settings",
-                scope: "session",
-                description: "Delete your entire account and all associated data.",
-                response: `{
-  ok: boolean
-}`,
-            },
-        ],
-    },
 ]
 
 export const dynamic = "force-dynamic"
@@ -851,7 +732,7 @@ export default async function DocsPage() {
                 steps={[
                     {
                         title: "Authenticate first",
-                        description: "Use session cookies in-browser or scoped API keys with the x-api-key header.",
+                        description: "Use scoped API keys with the x-api-key header.",
                     },
                     {
                         title: "Pick the scope",
@@ -869,10 +750,10 @@ export default async function DocsPage() {
                 </CardHeader>
                 <CardContent className="space-y-4 text-sm text-muted-foreground">
                     <p>
-                        Supply either a session cookie (browser) or an <code>x-api-key</code>{" "}
-                        header with a scoped token. Rate limits: 120 requests per minute per
-                        user or key + path combination. Expect HTTP 429 with{" "}
-                        <code>Retry-After</code> when throttled.
+                        Supply an <code>x-api-key</code> header with a scoped token. Rate
+                        limits: 120 requests per minute per user or key + path
+                        combination. Expect HTTP 429 with <code>Retry-After</code> when
+                        throttled.
                     </p>
                     <p>
                         API keys are formatted as <code>exp_prefix_secret</code>. Secrets
