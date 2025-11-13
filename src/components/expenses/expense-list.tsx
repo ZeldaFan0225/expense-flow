@@ -296,7 +296,7 @@ export function ExpenseList({
                                                 <tr>
                                                     <td colSpan={6} className="pt-0">
                                                         <div
-                                                            className="rounded-3xl border border-dashed bg-muted/30 p-4 sm:p-6">
+                                                            className="rounded-3xl border border-dashed bg-muted/30 p-4 sm:p-6 my-4">
                                                             <div
                                                                 className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                                                                 <div>

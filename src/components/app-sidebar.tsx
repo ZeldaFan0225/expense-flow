@@ -35,8 +35,8 @@ const navigation = [
     {
         label: "Workspace",
         items: [
-            {title: "Home", href: "/home", icon: Home},
-            {title: "Overview", href: "/", icon: LayoutDashboard},
+            {title: "Home", href: "/", icon: Home},
+            {title: "Overview", href: "/overview", icon: LayoutDashboard},
             {title: "Add expense", href: "/items", icon: Wallet},
             {title: "Expenses", href: "/expenses", icon: ListOrdered},
             {title: "Analytics", href: "/analytics", icon: ChartSpline},
@@ -51,6 +51,7 @@ const navigation = [
             {title: "Recurring expenses", href: "/recurring", icon: Repeat2},
             {title: "Income planning", href: "/income", icon: BadgeDollarSign},
             {title: "Categories", href: "/categories", icon: Shield},
+            {title: "Scenario planner", href: "/analytics/scenario", icon: Sparkles},
         ],
     },
     {
@@ -112,7 +113,9 @@ export function AppSidebar({
                                     const isActive =
                                         item.href === "/"
                                             ? pathname === "/"
-                                            : pathname.startsWith(item.href)
+                                            : item.href === "/analytics"
+                                                ? pathname === "/analytics"
+                                                : pathname.startsWith(item.href)
                                     return (
                                         <SidebarMenuItem key={item.title}>
                                             <SidebarMenuButton asChild isActive={isActive}>
