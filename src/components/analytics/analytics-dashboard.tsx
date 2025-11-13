@@ -130,6 +130,17 @@ export function AnalyticsDashboard({
     const [refreshingInsights, setRefreshingInsights] = React.useState(false)
 
     React.useEffect(() => {
+        const presetToMonths: Record<RangePreset, number> = {
+            month: 1,
+            "3m": 3,
+            "6m": 6,
+            "12m": 12,
+            ytd: new Date().getMonth() + 1,
+        }
+        setBaselineMonths(presetToMonths[preset])
+    }, [preset])
+
+    React.useEffect(() => {
         const controller = new AbortController()
 
         async function loadRange() {
@@ -183,7 +194,7 @@ export function AnalyticsDashboard({
         } finally {
             setRefreshingInsights(false)
         }
-    }, [baselineMonths])
+    }, [baselineMonths, preset])
 
     React.useEffect(() => {
         refreshInsights()
@@ -191,6 +202,30 @@ export function AnalyticsDashboard({
 
     return (
         <div className="space-y-8">
+            <div className="grid gap-4 md:grid-cols-3">
+                <DeltaCard
+                    label="Income"
+                    current={comparison.current.totalIncome}
+                    previous={comparison.previous.totalIncome}
+                    delta={comparison.deltas.income}
+                    currency={currency}
+                />
+                <DeltaCard
+                    label="Expenses"
+                    current={comparison.current.totalExpenses}
+                    previous={comparison.previous.totalExpenses}
+                    delta={comparison.deltas.expenses}
+                    currency={currency}
+                />
+                <DeltaCard
+                    label="Remaining"
+                    current={comparison.current.remainingBudget}
+                    previous={comparison.previous.remainingBudget}
+                    delta={comparison.deltas.remaining}
+                    currency={currency}
+                />
+            </div>
+
             <div className="flex flex-wrap items-center justify-between gap-4">
                 <Tabs value={preset} onChange={(value) => setPreset(value as RangePreset)} tabs={timeRangeTabs}/>
                 <div className="flex flex-wrap items-center gap-3">
@@ -256,44 +291,18 @@ export function AnalyticsDashboard({
                 </CardContent>
             </Card>
 
-            <div className="grid gap-4 md:grid-cols-3">
-                <DeltaCard
-                    label="Income"
-                    current={comparison.current.totalIncome}
-                    previous={comparison.previous.totalIncome}
-                    delta={comparison.deltas.income}
-                    currency={currency}
-                />
-                <DeltaCard
-                    label="Expenses"
-                    current={comparison.current.totalExpenses}
-                    previous={comparison.previous.totalExpenses}
-                    delta={comparison.deltas.expenses}
-                    currency={currency}
-                />
-                <DeltaCard
-                    label="Remaining"
-                    current={comparison.current.remainingBudget}
-                    previous={comparison.previous.remainingBudget}
-                    delta={comparison.deltas.remaining}
-                    currency={currency}
-                />
-            </div>
+            <IncomeFlowCard flow={incomeFlow} currency={currency}/>
 
-            <div className="space-y-6">
-                <ForecastCard forecast={forecast} currency={currency}/>
-                <IncomeFlowCard flow={incomeFlow} currency={currency}/>
-            </div>
+            <div className="w-full h-px bg-border my-8"/>
 
-            <div className="grid gap-6 lg:grid-cols-2">
-                <CategoryHealthCard
-                    data={categoryHealth}
-                    currency={currency}
-                    baselineMonths={baselineMonths}
-                    onBaselineChange={(value) => setBaselineMonths(value)}
-                />
-                <ScenarioPlanner categories={categories} currency={currency}/>
-            </div>
+            <CategoryHealthCard
+                data={categoryHealth}
+                currency={currency}
+            />
+
+            <ForecastCard forecast={forecast} currency={currency}/>
+
+            <ScenarioPlanner categories={categories} currency={currency}/>
 
             <AnomalyCard anomalies={anomalies} currency={currency}/>
 
@@ -573,13 +582,9 @@ function ThemedSankeyNode(props: SankeyNodeProps) {
 function CategoryHealthCard({
                                 data,
                                 currency,
-                                baselineMonths,
-                                onBaselineChange,
                             }: {
     data: CategoryHealthEntry[]
     currency: string
-    baselineMonths: number
-    onBaselineChange: (value: number) => void
 }) {
     return (
         <Card className="rounded-3xl">
@@ -589,18 +594,6 @@ function CategoryHealthCard({
                     <p className="text-sm text-muted-foreground">
                         Compare this month vs baseline averages
                     </p>
-                </div>
-                <div className="flex flex-wrap items-center gap-2 text-sm">
-                    <Label>Baseline window</Label>
-                    <Select
-                        value={String(baselineMonths)}
-                        onChange={(event) => onBaselineChange(Number(event.target.value))}
-                        className="w-28"
-                    >
-                        <option value="3">3 months</option>
-                        <option value="6">6 months</option>
-                        <option value="12">12 months</option>
-                    </Select>
                 </div>
             </CardHeader>
             <CardContent className="space-y-3">
