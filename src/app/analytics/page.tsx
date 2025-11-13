@@ -13,6 +13,7 @@ import {listCategories} from "@/lib/services/category-service"
 import {AnalyticsDashboard} from "@/components/analytics/analytics-dashboard"
 import {requireOnboardingCompletion} from "@/lib/onboarding"
 import {GuidedSteps} from "@/components/guided-steps"
+import {AnalyticsProvider} from "@/hooks/use-analytics"
 
 export const dynamic = "force-dynamic"
 
@@ -58,15 +59,17 @@ export default async function AnalyticsPage() {
                     },
                 ]}
             />
-            <AnalyticsDashboard
-                initialSeries={series.series}
-                initialComparison={comparison}
-                initialForecast={forecast}
-                initialAnomalies={anomalies}
-                initialCategoryHealth={categoryHealth}
-                initialIncomeFlow={incomeFlow}
-                currency={session.user.defaultCurrency}
-            />
+            <AnalyticsProvider>
+                <AnalyticsDashboard
+                    initialSeries={series.series}
+                    initialComparison={comparison}
+                    initialForecast={forecast}
+                    initialAnomalies={anomalies}
+                    initialCategoryHealth={categoryHealth}
+                    initialIncomeFlow={incomeFlow}
+                    currency={session.user.defaultCurrency}
+                />
+            </AnalyticsProvider>
         </DashboardShell>
     )
 }

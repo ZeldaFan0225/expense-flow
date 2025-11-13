@@ -13,12 +13,16 @@ import {requireOnboardingCompletion} from "@/lib/onboarding"
 import {GuidedSteps} from "@/components/guided-steps"
 import {OnboardingChecklist} from "@/components/dashboard/onboarding-checklist"
 import {getDashboardData} from "@/lib/services/dashboard-service"
+import {LandingHero} from "@/components/landing-hero";
 
 export const dynamic = "force-dynamic"
 
 export default async function HomePage() {
     const session = await auth()
-    if (!session?.user) redirect("/")
+
+    if (!session?.user) {
+        return <LandingHero/>
+    }
 
     requireOnboardingCompletion(session)
 

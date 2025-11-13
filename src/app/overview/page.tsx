@@ -11,15 +11,14 @@ import {ExpenseFeed} from "@/components/dashboard/expense-feed"
 import {FeatureHint} from "@/components/feature-hint"
 import {requireOnboardingCompletion} from "@/lib/onboarding"
 import {GuidedSteps} from "@/components/guided-steps"
+import {redirect} from "next/navigation";
 
 export const dynamic = "force-dynamic"
 
 export default async function Home() {
     const session = await auth()
 
-    if (!session?.user) {
-        return <LandingHero/>
-    }
+    if (!session?.user) redirect("/")
 
     requireOnboardingCompletion(session)
 

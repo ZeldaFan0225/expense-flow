@@ -90,6 +90,8 @@ type IncomeFlow = {
     oneTimeIncome: number
 }
 
+import {useAnalytics} from "@/hooks/use-analytics"
+import {useAnalytics} from "@/hooks/use-analytics"
 import {useRouter} from "next/navigation"
 
 type AnalyticsDashboardProps = {
@@ -112,7 +114,7 @@ export function AnalyticsDashboard({
                                        currency = "USD",
                                    }: AnalyticsDashboardProps) {
     const router = useRouter()
-    const [preset, setPreset] = React.useState<RangePreset>("6m")
+    const {preset, setPreset} = useAnalytics()
     const [series, setSeries] = React.useState(initialSeries)
     const [comparison, setComparison] = React.useState(initialComparison)
     const [forecast, setForecast] = React.useState(initialForecast)
@@ -133,7 +135,7 @@ export function AnalyticsDashboard({
             "12m": 12,
             ytd: new Date().getMonth() + 1,
         }
-        setBaselineMonths(presetToMonths[preset])
+        setBaselineMonths(presetToMonths[preset as RangePreset])
     }, [preset])
 
     React.useEffect(() => {
@@ -314,6 +316,47 @@ export function AnalyticsDashboard({
     )
 }
 
+function CategoryDetailsCard({
+                                 title,
+                                 items,
+                                 currency,
+                                 onClose,
+                             }: {
+    title: string
+    items: Array<{ description: string; amount: number }> | null
+    currency: string
+    onClose: () => void
+}) {
+    return (
+        <Card className="rounded-3xl">
+            <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>{title}</CardTitle>
+                <Button variant="ghost" size="sm" onClick={onClose}>
+                    Close
+                </Button>
+            </CardHeader>
+            <CardContent>
+                {items && items.length > 0 ? (
+                    <ul className="space-y-2">
+                        {items.map((item, index) => (
+                            <li
+                                key={index}
+                                className="flex items-center justify-between rounded-lg border p-3"
+                            >
+                                <span className="text-sm">{item.description}</span>
+                                <span className="text-sm font-medium">
+                  {formatCurrency(item.amount, currency)}
+                </span>
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p className="text-sm text-muted-foreground">No items to display.</p>
+                )}
+            </CardContent>
+        </Card>
+    )
+}
 function DeltaCard({
                        label,
                        current,
@@ -437,10 +480,51 @@ function ForecastCard({
 
 function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }) {
     const [isCompact, setIsCompact] = React.useState(false)
+    const [selectedNode, setSelectedNode] = React.useState<ThemedNodePayload | null>(null)
+    const [details, setDetails] = React.useState<any | null>(null)
+    const [loadingDetails, setLoadingDetails] = React.useState(false)
+    const {preset} = useAnalytics()
+
+    React.useEffect(() => {
+        if (!selectedNode) {
+            setDetails(null)
+            return
+        }
+
+        if (selectedNode.name === "Savings") {
+            setDetails(null)
+            return
+        }
+
+        async function fetchDetails() {
+            setLoadingDetails(true)
+            try {
+                const type = selectedNode.sourceLinks?.length > 0 ? "income" : "expense"
+                const params = new URLSearchParams({
+                    category: selectedNode.name,
+                    type,
+                    preset,
+                })
+                const response = await fetch(
+                    `/api/analytics/category-details?${params.toString()}`
+                )
+                if (!response.ok) throw new Error("Failed to load details")
+                const data = await response.json()
+                setDetails(data)
+            } catch (error) {
+                console.error(error)
+                setDetails(null)
+            } finally {
+                setLoadingDetails(false)
+            }
+        }
+
+        fetchDetails()
+    }, [selectedNode, preset])
 
     React.useEffect(() => {
         if (typeof window === "undefined" || !window.matchMedia) return
-        const media = window.matchMedia("(max-width: 1024px)")
+        const media = window.matchMacth("(max-width: 1024px)")
         const updateMatch = () => setIsCompact(media.matches)
         updateMatch()
         if (typeof media.addEventListener === "function") {
@@ -458,7 +542,7 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
                 : {top: 16, right: 120, bottom: 16, left: 150},
         [isCompact]
     )
-    const sankeyPadding = isCompact ? 28 : 48
+    const sankeyPadding = 48
     const sankeyNodeWidth = isCompact ? 14 : 18
     const linkCurvature = isCompact ? 0.35 : 0.5
     const chartHeight = isCompact ? "34rem" : "30rem"
@@ -471,61 +555,75 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
     )
 
     return (
-        <Card className="rounded-3xl">
-            <CardHeader>
-                <CardTitle>Income flow</CardTitle>
-                <p className="text-sm text-muted-foreground">
-                    Sankey view of where income is allocated
-                </p>
-            </CardHeader>
-            <CardContent className="space-y-3">
-                <div className="w-full" style={{height: chartHeight}}>
-                    {flow.links.length ? (
-                        <ResponsiveContainer width="100%" height="100%">
-                            <Sankey
-                                data={{nodes: flow.nodes, links: flow.links}}
-                                nodePadding={sankeyPadding}
-                                nodeWidth={sankeyNodeWidth}
-                                linkCurvature={linkCurvature}
-                                margin={sankeyMargin}
-                                node={renderSankeyNode}
-                            >
-                                <Tooltip
-                                    formatter={(value: number) => formatCurrency(value, currency)}
-                                    contentStyle={{
-                                        borderRadius: "1rem",
-                                        borderColor: "var(--border)",
-                                        background: "var(--card)",
-                                    }}
-                                    labelStyle={{
-                                        color: "var(--foreground)",
-                                        fontWeight: 600,
-                                    }}
-                                    itemStyle={{
-                                        color: "var(--foreground)",
-                                        fontSize: "0.875rem",
-                                    }}
-                                />
-                            </Sankey>
-                        </ResponsiveContainer>
-                    ) : (
-                        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-                            Add income and categorized spend to visualize flow.
-                        </div>
-                    )}
-                </div>
-                <div className="text-xs text-muted-foreground space-y-1">
-                    <p>
-                        Recurring income {formatCurrency(flow.recurringIncome, currency)} · One-time income{" "}
-                        {formatCurrency(flow.oneTimeIncome, currency)}
+        <>
+            <Card className="rounded-3xl">
+                <CardHeader>
+                    <CardTitle>Income flow</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                        Sankey view of where income is allocated
                     </p>
-                    <p>
-                        Total income {formatCurrency(flow.totalIncome, currency)} · Expenses{" "}
-                        {formatCurrency(flow.totalExpenses, currency)}
-                    </p>
-                </div>
-            </CardContent>
-        </Card>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    <div className="w-full" style={{height: chartHeight}}>
+                        {flow.links.length ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <Sankey
+                                    data={{nodes: flow.nodes, links: flow.links}}
+                                    nodePadding={sankeyPadding}
+                                    nodeWidth={sankeyNodeWidth}
+                                    linkCurvature={linkCurvature}
+                                    margin={sankeyMargin}
+                                    node={renderSankeyNode}
+                                    onClick={(data: ThemedNodePayload) => setSelectedNode(data)}
+                                >
+                                    <Tooltip
+                                        formatter={(value: number) => formatCurrency(value, currency)}
+                                        contentStyle={{
+                                            borderRadius: "1rem",
+                                            borderColor: "var(--border)",
+                                            background: "var(--card)",
+                                        }}
+                                        labelStyle={{
+                                            color: "var(--foreground)",
+                                            fontWeight: 600,
+                                        }}
+                                        itemStyle={{
+                                            color: "var(--foreground)",
+                                            fontSize: "0.875rem",
+                                        }}
+                                    />
+                                </Sankey>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+                                Add income and categorized spend to visualize flow.
+                            </div>
+                        )}
+                    </div>
+                    <div className="text-xs text-muted-foreground space-y-1">
+                        <p>
+                            Recurring income {formatCurrency(flow.recurringIncome, currency)} · One-time income{" "}
+                            {formatCurrency(flow.oneTimeIncome, currency)}
+                        </p>
+                        <p>
+                            Total income {formatCurrency(flow.totalIncome, currency)} · Expenses{" "}
+                            {formatCurrency(flow.totalExpenses, currency)}
+                        p>
+                    </div>
+                </CardContent>
+            </Card>
+            {details && selectedNode && (
+                <CategoryDetailsCard
+                    title={`Details for ${selectedNode.name}`}
+                    items={details}
+                    currency={currency}
+                    onClose={() => {
+                        setSelectedNode(null)
+                        setDetails(null)
+                    }}
+                />
+            )}
+        </>
     )
 }
 
@@ -534,6 +632,7 @@ type ThemedNodePayload = RechartsSankeyNode & { color?: string }
 function ThemedSankeyNode(props: SankeyNodeProps) {
     const {x, y, width, height} = props
     const payload = props.payload as ThemedNodePayload
+    if (!payload.name) return null
     const fill = payload?.color ?? "var(--secondary)"
     const isSink = (payload?.sourceLinks?.length ?? 0) === 0
     const isSource = (payload?.targetLinks?.length ?? 0) === 0
@@ -543,12 +642,13 @@ function ThemedSankeyNode(props: SankeyNodeProps) {
     let textAnchor: "start" | "end" = "start"
 
     if (isSource) {
-        labelX = x + width + inwardOffset
+        labelX = x - inwardOffset
+        textAnchor = "end"
     }
 
     if (isSink) {
-        textAnchor = "end"
-        labelX = x - inwardOffset
+        textAnchor = "start"
+        labelX = x + width + inwardOffset
     }
     const textColor = "var(--foreground)"
 
