@@ -45,12 +45,15 @@ export async function GET(req: Request) {
     try {
         if (type === "income") {
             const allIncomes = await listIncomeForRange(session.user.id, {start, end})
-            if (category === "Recurring") {
+            if (category === "Income") {
+                return NextResponse.json(allIncomes)
+            }
+            if (category === "Recurring income") {
                 const incomes = allIncomes.filter(
                     (income) => !!income.recurringSourceId
                 )
                 return NextResponse.json(incomes)
-            } else if (category === "One-time") {
+            } else if (category === "One-time income") {
                 const incomes = allIncomes.filter(
                     (income) => !income.recurringSourceId
                 )
@@ -59,6 +62,9 @@ export async function GET(req: Request) {
             return NextResponse.json([])
         } else if (type === "expense") {
             const expenses = await listExpenses(session.user.id, {start, end})
+            if (category === "Spending") {
+                return NextResponse.json(expenses)
+            }
             const filteredExpenses = expenses.filter(
                 (expense) => expense.category?.name === category
             )

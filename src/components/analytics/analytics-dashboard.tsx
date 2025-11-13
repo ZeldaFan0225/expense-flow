@@ -1,6 +1,8 @@
 "use client"
 
 import * as React from "react"
+import {format} from "date-fns"
+import {Banknote, Wallet} from "lucide-react"
 import {
     Area,
     AreaChart,
@@ -15,7 +17,9 @@ import {
     YAxis,
 } from "recharts"
 import type {NodeProps as SankeyNodeProps} from "recharts/types/chart/Sankey"
+import type {LinkProps} from "recharts/types/chart/Sankey"
 import type {SankeyNode as RechartsSankeyNode} from "recharts/types/util/types"
+type SankeyElementType = 'node' | 'link';
 import type {CategoryHealthEntry} from "@/lib/services/analytics-service"
 import {Button} from "@/components/ui/button"
 import {Card, CardContent, CardHeader, CardTitle} from "@/components/ui/card"
@@ -24,6 +28,7 @@ import {Input} from "@/components/ui/input"
 import {Label} from "@/components/ui/label"
 import {Select} from "@/components/ui/select"
 import {formatCurrency} from "@/lib/currency"
+import {cn} from "@/lib/utils"
 
 const timeRangeTabs = [
     {value: "month", label: "1 month"},
@@ -90,7 +95,6 @@ type IncomeFlow = {
     oneTimeIncome: number
 }
 
-import {useAnalytics} from "@/hooks/use-analytics"
 import {useAnalytics} from "@/hooks/use-analytics"
 import {useRouter} from "next/navigation"
 
@@ -321,12 +325,16 @@ function CategoryDetailsCard({
                                  items,
                                  currency,
                                  onClose,
+                                 type,
                              }: {
     title: string
-    items: Array<{ description: string; amount: number }> | null
+    items: any[] | null
     currency: string
     onClose: () => void
+    type: "expense" | "income"
 }) {
+    const Icon = type === "expense" ? Wallet : Banknote
+
     return (
         <Card className="rounded-3xl">
             <CardHeader className="flex flex-row items-center justify-between">
@@ -337,16 +345,32 @@ function CategoryDetailsCard({
             </CardHeader>
             <CardContent>
                 {items && items.length > 0 ? (
-                    <ul className="space-y-2">
-                        {items.map((item, index) => (
-                            <li
-                                key={index}
-                                className="flex items-center justify-between rounded-lg border p-3"
-                            >
-                                <span className="text-sm">{item.description}</span>
-                                <span className="text-sm font-medium">
-                  {formatCurrency(item.amount, currency)}
-                </span>
+                    <ul className="space-y-4">
+                        {items.map((item) => (
+                            <li key={item.id} className="flex items-start gap-4">
+                                <div className="mt-1 rounded-2xl border bg-muted/40 p-2">
+                                    <Icon className="size-4 text-muted-foreground"/>
+                                </div>
+                                <div className="flex-1 space-y-1">
+                                    <p className="text-sm font-medium text-foreground">
+                                        {item.description}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                        {format(new Date(item.occurredOn), "MMM d, yyyy")}
+                                    </p>
+                                </div>
+                                <div className="text-right">
+                                    <p
+                                        className={cn(
+                                            "text-sm font-semibold",
+                                            type === "expense"
+                                                ? "text-rose-500"
+                                                : "text-emerald-500"
+                                        )}
+                                    >
+                                        {formatCurrency(item.amount, currency)}
+                                    </p>
+                                </div>
                             </li>
                         ))}
                     </ul>
@@ -480,10 +504,20 @@ function ForecastCard({
 
 function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }) {
     const [isCompact, setIsCompact] = React.useState(false)
-    const [selectedNode, setSelectedNode] = React.useState<ThemedNodePayload | null>(null)
-    const [details, setDetails] = React.useState<any | null>(null)
+    const [selectedNode, setSelectedNode] = React.useState<SankeyNodeProps | null>(null)
+    const [details, setDetails] = React.useState<any[] | null>(null)
     const [loadingDetails, setLoadingDetails] = React.useState(false)
     const {preset} = useAnalytics()
+    const type = React.useMemo(() => {
+        if (!selectedNode) return null
+        const name = (selectedNode.payload as ThemedNodePayload)?.name
+        if (!name) return null
+        return name === "Recurring income" ||
+        name === "One-time income" ||
+        name === "Income"
+            ? "income"
+            : "expense"
+    }, [selectedNode])
 
     React.useEffect(() => {
         if (!selectedNode) {
@@ -491,7 +525,9 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
             return
         }
 
-        if (selectedNode.name === "Savings") {
+        const name = (selectedNode.payload as ThemedNodePayload)?.name
+
+        if (!name || name === "Savings") {
             setDetails(null)
             return
         }
@@ -499,9 +535,9 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
         async function fetchDetails() {
             setLoadingDetails(true)
             try {
-                const type = selectedNode.sourceLinks?.length > 0 ? "income" : "expense"
+                if (!type) return
                 const params = new URLSearchParams({
-                    category: selectedNode.name,
+                    category: name,
                     type,
                     preset,
                 })
@@ -520,11 +556,11 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
         }
 
         fetchDetails()
-    }, [selectedNode, preset])
+    }, [selectedNode, preset, type])
 
     React.useEffect(() => {
         if (typeof window === "undefined" || !window.matchMedia) return
-        const media = window.matchMacth("(max-width: 1024px)")
+        const media = window.matchMedia("(max-width: 1024px)")
         const updateMatch = () => setIsCompact(media.matches)
         updateMatch()
         if (typeof media.addEventListener === "function") {
@@ -574,7 +610,12 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
                                     linkCurvature={linkCurvature}
                                     margin={sankeyMargin}
                                     node={renderSankeyNode}
-                                    onClick={(data: ThemedNodePayload) => setSelectedNode(data)}
+                                    // @ts-expect-error Recharts has incorrect types for Sankey onClick
+                                    onClick={(item: SankeyNodeProps | LinkProps, type: SankeyElementType, e: MouseEvent) => {
+                                        if (type === 'node') {
+                                            setSelectedNode(item as SankeyNodeProps);
+                                        }
+                                    }}
                                 >
                                     <Tooltip
                                         formatter={(value: number) => formatCurrency(value, currency)}
@@ -608,15 +649,16 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
                         <p>
                             Total income {formatCurrency(flow.totalIncome, currency)} · Expenses{" "}
                             {formatCurrency(flow.totalExpenses, currency)}
-                        p>
+                        </p>
                     </div>
                 </CardContent>
             </Card>
-            {details && selectedNode && (
+            {details && selectedNode && type && (
                 <CategoryDetailsCard
-                    title={`Details for ${selectedNode.name}`}
+                    title={`Details for ${(selectedNode.payload as ThemedNodePayload)?.name}`}
                     items={details}
                     currency={currency}
+                    type={type}
                     onClose={() => {
                         setSelectedNode(null)
                         setDetails(null)
