@@ -1,7 +1,8 @@
 import type {NextRequest} from "next/server"
 import {authenticateRequest} from "@/lib/api-auth"
 import {handleApiError, json} from "@/lib/http"
-import {getIncomeFlowGraph, type RangePreset} from "@/lib/services/analytics-service"
+import {getIncomeFlowGraph} from "@/lib/services/analytics-service"
+import {type RangePreset} from "@/lib/time"
 
 export async function GET(request: NextRequest) {
     try {

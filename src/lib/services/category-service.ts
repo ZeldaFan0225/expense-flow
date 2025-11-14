@@ -31,6 +31,12 @@ export async function listCategories(userId: string) {
     })
 }
 
+export async function getCategoryByName(userId: string, name: string) {
+    return prisma.category.findFirst({
+        where: {userId, name},
+    })
+}
+
 export async function upsertCategory(userId: string, payload: unknown) {
     const data = categorySchema.parse(payload)
 

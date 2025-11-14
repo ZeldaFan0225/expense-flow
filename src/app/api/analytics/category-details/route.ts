@@ -2,6 +2,8 @@ import {auth} from "@/lib/auth-server"
 import {NextResponse} from "next/server"
 import {listExpenses} from "@/lib/services/expense-service"
 import {listIncomeForRange} from "@/lib/services/income-service"
+import {resolveRange, type RangePreset} from "@/lib/time";
+import {getCategoryByName} from "@/lib/services/category-service";
 
 export async function GET(req: Request) {
     const session = await auth()
@@ -10,50 +12,28 @@ export async function GET(req: Request) {
     }
 
     const {searchParams} = new URL(req.url)
-    const category = searchParams.get("category")
+    const categoryName = searchParams.get("category")
     const type = searchParams.get("type")
-    const preset = searchParams.get("preset") ?? "6m"
+    const preset = (searchParams.get("preset") ?? "6m") as RangePreset
 
-    if (!category || !type) {
+    if (!categoryName || !type) {
         return new Response("Missing category or type", {status: 400})
     }
 
-    const now = new Date()
-    let start: Date
-    const end = new Date()
-
-    switch (preset) {
-        case "month":
-            start = new Date(now.getFullYear(), now.getMonth() - 1, now.getDate())
-            break
-        case "3m":
-            start = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate())
-            break
-        case "6m":
-            start = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate())
-            break
-        case "12m":
-            start = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate())
-            break
-        case "ytd":
-            start = new Date(now.getFullYear(), 0, 1)
-            break
-        default:
-            start = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate())
-    }
+    const {start, end} = resolveRange({preset})
 
     try {
         if (type === "income") {
             const allIncomes = await listIncomeForRange(session.user.id, {start, end})
-            if (category === "Income") {
+            if (categoryName === "Income") {
                 return NextResponse.json(allIncomes)
             }
-            if (category === "Recurring income") {
+            if (categoryName === "Recurring income") {
                 const incomes = allIncomes.filter(
                     (income) => !!income.recurringSourceId
                 )
                 return NextResponse.json(incomes)
-            } else if (category === "One-time income") {
+            } else if (categoryName === "One-time income") {
                 const incomes = allIncomes.filter(
                     (income) => !income.recurringSourceId
                 )
@@ -61,14 +41,18 @@ export async function GET(req: Request) {
             }
             return NextResponse.json([])
         } else if (type === "expense") {
-            const expenses = await listExpenses(session.user.id, {start, end})
-            if (category === "Spending") {
+            if (categoryName === "Spending") {
+                const expenses = await listExpenses(session.user.id, {start, end})
                 return NextResponse.json(expenses)
             }
-            const filteredExpenses = expenses.filter(
-                (expense) => expense.category?.name === category
-            )
-            return NextResponse.json(filteredExpenses)
+
+            const category = await getCategoryByName(session.user.id, categoryName)
+            if (!category) {
+                return NextResponse.json([])
+            }
+
+            const expenses = await listExpenses(session.user.id, {start, end, categoryId: category.id})
+            return NextResponse.json(expenses)
         }
 
         return new Response("Invalid type", {status: 400})

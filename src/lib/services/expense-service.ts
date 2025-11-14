@@ -37,13 +37,14 @@ function mapExpense(record: ExpenseWithRelations) {
 
 export async function listExpenses(
     userId: string,
-    params: { start?: Date; end?: Date; take?: number } = {}
+    params: { start?: Date; end?: Date; take?: number, categoryId?: string } = {}
 ) {
     await materializeRecurringExpenses(userId)
-    const {start, end, take = 200} = params
+    const {start, end, take = 200, categoryId} = params
     const expenses = await prisma.expense.findMany({
         where: {
             userId,
+            categoryId,
             occurredOn: {
                 gte: start,
                 lte: end,
