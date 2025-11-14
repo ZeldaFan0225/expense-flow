@@ -31,6 +31,7 @@ model User {
   accounts           Account[]
   sessions           Session[]
   categories         Category[]
+  categoryLimits     CategoryLimit[]
   expenses           Expense[]
   expenseGroups      ExpenseGroup[]
   recurringExpenses  RecurringExpense[]
@@ -85,8 +86,22 @@ model Category {
   updatedAt DateTime @updatedAt
   expenses  Expense[]
   recurring RecurringExpense[]
+  limits    CategoryLimit[]
 
   @@unique([userId, name])
+}
+
+model CategoryLimit {
+  id                   String   @id @default(cuid())
+  userId               String
+  categoryId           String
+  limitAmountEncrypted Json
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category             Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, categoryId])
 }
 
 model ExpenseGroup {

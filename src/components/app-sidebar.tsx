@@ -15,6 +15,7 @@ import {
     Settings,
     Shield,
     Sparkles,
+    Target,
     UploadCloud,
     Wallet,
 } from "lucide-react"
@@ -49,6 +50,7 @@ const navigation = [
             {title: "Recurring", href: "/recurring", icon: Repeat2},
             {title: "Categories", href: "/categories", icon: Shield},
             {title: "Analytics", href: "/analytics", icon: ChartSpline},
+            {title: "Category Limits", href: "/analytics/limits", icon: Target},
             {title: "Scenario Planner", href: "/analytics/scenario", icon: Sparkles},
         ],
     },

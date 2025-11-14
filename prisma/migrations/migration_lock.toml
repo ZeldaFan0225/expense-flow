@@ -1,0 +1,2 @@
+# This file is used by Prisma Migrate to ensure the datasource can't change silently.
+provider = "postgresql"

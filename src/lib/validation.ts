@@ -122,3 +122,8 @@ export const importScheduleSchema = z.object({
     frequency: z.enum(["weekly", "biweekly", "monthly", "quarterly"]),
     sourceUrl: z.string().url().optional(),
 })
+
+export const categoryLimitSchema = z.object({
+    categoryId: z.string().cuid(),
+    limit: z.coerce.number().positive(),
+})

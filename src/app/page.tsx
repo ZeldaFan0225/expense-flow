@@ -13,6 +13,7 @@ import {requireOnboardingCompletion} from "@/lib/onboarding"
 import {GuidedSteps} from "@/components/guided-steps"
 import {OnboardingChecklist} from "@/components/dashboard/onboarding-checklist"
 import {getDashboardData} from "@/lib/services/dashboard-service"
+import {getCategoryLimitReport} from "@/lib/services/category-limit-service"
 import {LandingHero} from "@/components/landing-hero";
 
 export const dynamic = "force-dynamic"
@@ -26,9 +27,10 @@ export default async function HomePage() {
 
     requireOnboardingCompletion(session)
 
-    const [summary, dashboard] = await Promise.all([
+    const [summary, dashboard, limitReport] = await Promise.all([
         getDailySummary(session.user.id),
         getDashboardData(session.user.id),
+        getCategoryLimitReport(session.user.id),
     ])
     const currency = session.user.defaultCurrency
 
@@ -71,6 +73,22 @@ export default async function HomePage() {
         amount: formatter.format(template.amount),
         meta: `Due day ${template.dueDayOfMonth}`,
     }))
+
+    const overLimitRows = limitReport.rows
+        .filter((row) => row.status === "over")
+        .sort((a, b) => b.variance - a.variance)
+
+    const limitAlertItems = overLimitRows.slice(0, 4).map((row) => {
+        const utilization =
+            row.limit > 0 ? Math.round((row.spent / row.limit) * 100) : null
+        return {
+            id: row.id,
+            title: row.categoryName,
+            subtitle: `Spent ${formatter.format(row.spent)} of ${formatter.format(row.limit)} limit`,
+            amount: `+${formatter.format(row.variance)}`,
+            meta: utilization ? `${Math.min(utilization, 999)}% used` : undefined,
+        }
+    })
 
     const checklist = [
         {
@@ -136,6 +154,14 @@ export default async function HomePage() {
                 <OnboardingChecklist items={checklist}/>
 
                 <DailySummaryBoard summary={summary} currency={currency}/>
+
+                <SummaryList
+                    title="Guardrail alerts"
+                    description="Categories currently above their monthly ceiling. Tweak guardrails from Analytics > Limits."
+                    emptyLabel="All categories are within their guardrails."
+                    items={limitAlertItems}
+                    variant="alert"
+                />
 
                 <div className="grid gap-6 lg:grid-cols-3">
                     <SummaryList
