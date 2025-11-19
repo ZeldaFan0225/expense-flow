@@ -93,11 +93,22 @@ type IncomeFlowNode = {
     color?: string
     label?: string
     kind?: FlowNodeKind
+    hidden?: boolean
+}
+
+type IncomeFlowLink = {
+    source: number
+    target: number
+    value: number
+    hidden?: boolean
+    bridgeKey?: string
+    bridgeSourceLabel?: string
+    bridgeTargetLabel?: string
 }
 
 type IncomeFlow = {
     nodes: IncomeFlowNode[]
-    links: Array<{ source: number; target: number; value: number }>
+    links: IncomeFlowLink[]
     totalIncome: number
     totalExpenses: number
     recurringIncome: number
@@ -648,6 +659,19 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
         return () => media.removeListener(updateMatch)
     }, [])
 
+    const bridgeSegmentsRef = React.useRef(new Map<string, BridgeGeometry>())
+    bridgeSegmentsRef.current.clear()
+
+    const registerBridgeSegment = React.useCallback((key: string, geometry: BridgeGeometry) => {
+        bridgeSegmentsRef.current.set(key, geometry)
+    }, [])
+
+    const consumeBridgeSegment = React.useCallback((key: string) => {
+        const geometry = bridgeSegmentsRef.current.get(key)
+        bridgeSegmentsRef.current.delete(key)
+        return geometry
+    }, [])
+
     const sankeyMargin = React.useMemo(
         () =>
             isCompact
@@ -670,8 +694,12 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
     )
     const renderSankeyLink = React.useCallback(
         (linkProps: LinkProps) =>
-            (<ThemedSankeyLink {...linkProps}/> as unknown as React.ReactElement<React.SVGProps<SVGPathElement>>),
-        []
+            (<ThemedSankeyLink
+                {...linkProps}
+                registerBridgeSegment={registerBridgeSegment}
+                consumeBridgeSegment={consumeBridgeSegment}
+            /> as unknown as React.ReactElement<React.SVGProps<SVGPathElement>>),
+        [consumeBridgeSegment, registerBridgeSegment]
     )
 
     return (
@@ -762,9 +790,29 @@ type ThemedNodeProps = SankeyNodeProps & {
     labelPadding?: number
 }
 
+type ThemedLinkExtraProps = {
+    registerBridgeSegment?: (key: string, geometry: BridgeGeometry) => void
+    consumeBridgeSegment?: (key: string) => BridgeGeometry | undefined
+}
+
+type ThemedLinkPayloadMeta = {
+    hidden?: boolean
+    bridgeKey?: string
+    bridgeSourceLabel?: string
+    bridgeTargetLabel?: string
+}
+
+type BridgeGeometry = {
+    startX: number
+    startControlX: number
+    startY: number
+    linkWidth: number
+}
+
 function ThemedSankeyNode(props: ThemedNodeProps) {
     const {x, y, width, height, labelPadding = 16} = props
     const payload = props.payload as ThemedNodePayload
+    if (payload?.hidden) return null
     const label = payload?.label ?? payload?.name
     if (!label) return null
     const fill = payload?.color ?? "var(--secondary)"
@@ -813,7 +861,7 @@ function ThemedSankeyNode(props: ThemedNodeProps) {
     )
 }
 
-function ThemedSankeyLink(props: LinkProps) {
+function ThemedSankeyLink(props: LinkProps & ThemedLinkExtraProps) {
     const {
         sourceX,
         targetX,
@@ -824,11 +872,14 @@ function ThemedSankeyLink(props: LinkProps) {
         sourceRelativeY,
         linkWidth,
         payload,
+        registerBridgeSegment,
+        consumeBridgeSegment,
     } = props
     const sourcePayload = payload?.source as ThemedNodePayload | undefined
     const targetPayload = payload?.target as ThemedNodePayload | undefined
     const sourceLabel = sourcePayload?.label ?? sourcePayload?.name
     const targetLabel = targetPayload?.label ?? targetPayload?.name
+    const linkMeta = payload as ThemedLinkPayloadMeta
     const sourceWidth = sourcePayload?.dx ?? 0
     const targetWidth = targetPayload?.dx ?? 0
     const centerSourceX = sourceX - sourceWidth / 2
@@ -839,15 +890,53 @@ function ThemedSankeyLink(props: LinkProps) {
     let adjustedSourceY = sourceY
     const linkHalfWidth = linkWidth / 2
 
-    // Force Income links to originate at the top/bottom edge so Remaining/Spending paths are obvious.
-    if (sourceLabel === "Income" && typeof sourceRelativeY === "number") {
-        const nodeTop = sourceY - sourceRelativeY - linkHalfWidth
-        const nodeBottom = nodeTop + (sourcePayload?.dy ?? 0)
-        if (targetLabel === "Spending") {
-            adjustedSourceY = nodeTop + linkHalfWidth
-        } else if (targetLabel === "Remaining") {
-            adjustedSourceY = nodeBottom - linkHalfWidth
+    const adjustedAttachment = adjustIncomeAttachment(
+        sourceLabel,
+        linkMeta?.bridgeTargetLabel ?? targetLabel,
+        {
+            sourceY,
+            sourceRelativeY,
+            linkHalfWidth,
+            sourcePayload,
         }
+    )
+    if (typeof adjustedAttachment === "number") {
+        adjustedSourceY = adjustedAttachment
+    }
+
+    if (linkMeta?.hidden) {
+        if (linkMeta.bridgeKey && registerBridgeSegment) {
+            registerBridgeSegment(linkMeta.bridgeKey, {
+                startX: centerSourceX,
+                startControlX: centerSourceControlX,
+                startY: adjustedSourceY,
+                linkWidth,
+            })
+        }
+        return null
+    }
+
+    if (sourcePayload?.hidden && linkMeta?.bridgeKey && consumeBridgeSegment) {
+        const bridge = consumeBridgeSegment(linkMeta.bridgeKey)
+        if (bridge) {
+            return (
+                <path
+                    className="recharts-sankey-link"
+                    d={`M${bridge.startX},${bridge.startY} C${bridge.startControlX},${bridge.startY} ${centerTargetControlX},${targetY} ${centerTargetX},${targetY}`}
+                    fill="none"
+                    stroke="currentColor"
+                    style={{color: strokeColor}}
+                    strokeWidth={bridge.linkWidth}
+                    strokeOpacity={0.1}
+                    strokeLinecap="butt"
+                />
+            )
+        }
+        return null
+    }
+
+    if (sourcePayload?.hidden || targetPayload?.hidden) {
+        return null
     }
 
     return (
@@ -862,6 +951,29 @@ function ThemedSankeyLink(props: LinkProps) {
             strokeLinecap="butt"
         />
     )
+}
+
+function adjustIncomeAttachment(
+    sourceLabel: string | undefined,
+    targetLabel: string | undefined,
+    context: {
+        sourceY: number
+        sourceRelativeY: number
+        linkHalfWidth: number
+        sourcePayload?: ThemedNodePayload
+    }
+) {
+    if (sourceLabel === "Income" && typeof context.sourceRelativeY === "number") {
+        const nodeTop = context.sourceY - context.sourceRelativeY - context.linkHalfWidth
+        const nodeBottom = nodeTop + (context.sourcePayload?.dy ?? 0)
+        if (targetLabel === "Spending") {
+            return nodeTop + context.linkHalfWidth
+        }
+        if (targetLabel === "Remaining") {
+            return nodeBottom - context.linkHalfWidth
+        }
+    }
+    return undefined
 }
 
 function CategoryHealthCard({

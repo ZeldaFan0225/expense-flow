@@ -501,6 +501,13 @@ export async function simulateBudget(userId: string, input: ScenarioInput) {
 
 type FlowNodeKind = "income" | "expense" | "meta"
 
+type FlowLinkMeta = {
+    hidden?: boolean
+    bridgeKey?: string
+    bridgeSourceLabel?: string
+    bridgeTargetLabel?: string
+}
+
 export async function getIncomeFlowGraph(
     userId: string,
     params?: { preset?: RangePreset; start?: Date; end?: Date }
@@ -528,7 +535,7 @@ export async function getIncomeFlowGraph(
         0
     )
 
-    const nodes: Array<{ name: string; label: string; color?: string; kind: FlowNodeKind }> = [
+    const nodes: Array<{ name: string; label: string; color?: string; kind: FlowNodeKind; hidden?: boolean }> = [
         {name: "recurring-income", label: "Recurring income", color: "var(--chart-1)", kind: "income"},
         {name: "one-time-income", label: "One-time income", color: "var(--chart-2)", kind: "income"},
         {name: "income", label: "Income", color: "var(--chart-3)", kind: "income"},
@@ -536,7 +543,7 @@ export async function getIncomeFlowGraph(
     ]
     const incomeNodeIndex = 2
     const spendingNodeIndex = 3
-    const links: Array<{ source: number; target: number; value: number }> = []
+    const links: Array<{ source: number; target: number; value: number } & FlowLinkMeta> = []
     const remainingAmount = Math.max(overview.remainingBudget, 0)
 
     if (recurringIncomeTotal > 0) {
@@ -580,14 +587,16 @@ export async function getIncomeFlowGraph(
     })
 
     if (remainingAmount > 0) {
-        const remainingIntermediateIndex = nodes.length
+        const bridgeKey = "remaining-bridge"
+        const bridgeNodeIndex = nodes.length
         nodes.push({
-            name: "remaining-flow",
-            label: "Remaining",
+            name: bridgeKey,
+            label: "Remaining bridge",
             color: "var(--chart-5)",
             kind: "meta",
+            hidden: true,
         })
-        const remainingSinkIndex = nodes.length
+        const remainingNodeIndex = nodes.length
         nodes.push({
             name: "remaining",
             label: "Remaining",
@@ -596,13 +605,20 @@ export async function getIncomeFlowGraph(
         })
         links.push({
             source: incomeNodeIndex,
-            target: remainingIntermediateIndex,
+            target: bridgeNodeIndex,
             value: remainingAmount,
+            hidden: true,
+            bridgeKey,
+            bridgeSourceLabel: "Income",
+            bridgeTargetLabel: "Remaining",
         })
         links.push({
-            source: remainingIntermediateIndex,
-            target: remainingSinkIndex,
+            source: bridgeNodeIndex,
+            target: remainingNodeIndex,
             value: remainingAmount,
+            bridgeKey,
+            bridgeSourceLabel: "Income",
+            bridgeTargetLabel: "Remaining",
         })
     }
 
@@ -633,10 +649,24 @@ export async function getIncomeFlowGraph(
                 source,
                 target,
                 value: link.value,
+                hidden: link.hidden,
+                bridgeKey: link.bridgeKey,
+                bridgeSourceLabel: link.bridgeSourceLabel,
+                bridgeTargetLabel: link.bridgeTargetLabel,
             }
         })
         .filter(
-            (link): link is { source: number; target: number; value: number } =>
+            (
+                link
+            ): link is {
+                source: number
+                target: number
+                value: number
+                hidden?: boolean
+                bridgeKey?: string
+                bridgeSourceLabel?: string
+                bridgeTargetLabel?: string
+            } =>
                 link !== null
         )
 
