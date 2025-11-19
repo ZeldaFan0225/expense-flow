@@ -530,25 +530,19 @@ export async function getIncomeFlowGraph(
         {name: "Recurring income", color: "var(--chart-1)"},
         {name: "One-time income", color: "var(--chart-2)"},
         {name: "Income", color: "var(--chart-3)"},
-        {name: "Remaining", color: "var(--chart-5)"},
         {name: "Spending", color: "var(--chart-4)"},
     ]
+    const incomeNodeIndex = 2
+    const spendingNodeIndex = 3
     const links: Array<{ source: number; target: number; value: number }> = []
+    const remainingAmount = Math.max(overview.remainingBudget, 0)
 
     if (recurringIncomeTotal > 0) {
-        links.push({source: 0, target: 2, value: recurringIncomeTotal})
+        links.push({source: 0, target: incomeNodeIndex, value: recurringIncomeTotal})
     }
 
     if (oneTimeIncomeTotal > 0) {
-        links.push({source: 1, target: 2, value: oneTimeIncomeTotal})
-    }
-
-    if (overview.remainingBudget > 0) {
-        links.push({
-            source: 2,
-            target: 3,
-            value: overview.remainingBudget,
-        })
+        links.push({source: 1, target: incomeNodeIndex, value: oneTimeIncomeTotal})
     }
 
     const normalizedIncome = Math.max(overview.totalIncome, 0)
@@ -556,7 +550,7 @@ export async function getIncomeFlowGraph(
     const incomeAppliedToSpending = Math.min(normalizedExpenses, normalizedIncome)
 
     if (incomeAppliedToSpending > 0) {
-        links.push({source: 2, target: 4, value: incomeAppliedToSpending})
+        links.push({source: incomeNodeIndex, target: spendingNodeIndex, value: incomeAppliedToSpending})
     }
 
     const spendingShortfall = Math.max(
@@ -567,7 +561,7 @@ export async function getIncomeFlowGraph(
     if (spendingShortfall > 0) {
         const savingsNodeIndex = nodes.length
         nodes.push({name: "Savings", color: "var(--chart-5)"})
-        links.push({source: savingsNodeIndex, target: 4, value: spendingShortfall})
+        links.push({source: savingsNodeIndex, target: spendingNodeIndex, value: spendingShortfall})
     }
 
     overview.categoryTotals.forEach((category) => {
@@ -575,8 +569,18 @@ export async function getIncomeFlowGraph(
         if (value <= 0) return
         const targetIndex = nodes.length
         nodes.push({name: category.label, color: category.color})
-        links.push({source: 4, target: targetIndex, value})
+        links.push({source: spendingNodeIndex, target: targetIndex, value})
     })
+
+    if (remainingAmount > 0) {
+        const remainingNodeIndex = nodes.length
+        nodes.push({name: "Remaining", color: "var(--chart-5)"})
+        links.push({
+            source: incomeNodeIndex,
+            target: remainingNodeIndex,
+            value: remainingAmount,
+        })
+    }
 
     const filteredLinks = links.filter((link) => link.value > 0)
     const usedNodeIndices = new Set<number>()

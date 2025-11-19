@@ -688,6 +688,7 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
                                     nodeWidth={sankeyNodeWidth}
                                     linkCurvature={linkCurvature}
                                     margin={sankeyMargin}
+                                    sort={false}
                                     node={renderSankeyNode}
                                     link={renderSankeyLink}
                                     // @ts-expect-error Recharts has incorrect types for Sankey onClick
