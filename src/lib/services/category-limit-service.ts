@@ -1,10 +1,10 @@
 import {startOfMonth, endOfMonth, format} from "date-fns"
-import type {Prisma} from "@prisma/client"
+import type {Category, CategoryLimit} from "@prisma/client"
 import {prisma} from "@/lib/prisma"
 import {encryptNumber, decryptNumber, serializeEncrypted} from "@/lib/encryption"
 import {calculateImpactShare} from "@/lib/expense-shares"
 
-type CategoryLimitRecord = Prisma.CategoryLimitGetPayload<{ include: { category: true } }>
+type CategoryLimitRecord = CategoryLimit & { category: Category }
 
 export type CategoryLimitSummary = {
     id: string
