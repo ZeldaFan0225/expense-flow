@@ -663,6 +663,11 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
             /> as unknown as React.ReactElement<React.SVGProps<SVGRectElement>>),
         [sankeyLabelPadding]
     )
+    const renderSankeyLink = React.useCallback(
+        (linkProps: LinkProps) =>
+            (<ThemedSankeyLink {...linkProps}/> as unknown as React.ReactElement<React.SVGProps<SVGPathElement>>),
+        []
+    )
 
     return (
         <>
@@ -684,6 +689,7 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
                                     linkCurvature={linkCurvature}
                                     margin={sankeyMargin}
                                     node={renderSankeyNode}
+                                    link={renderSankeyLink}
                                     // @ts-expect-error Recharts has incorrect types for Sankey onClick
                                     onClick={(item: SankeyNodeProps | LinkProps, type: SankeyElementType, e: MouseEvent) => {
                                         if (type === 'node') {
@@ -783,7 +789,6 @@ function ThemedSankeyNode(props: ThemedNodeProps) {
                 fill={fill}
                 stroke="var(--border)"
                 strokeWidth={1}
-                opacity={0.9}
             />
             <text
                 x={labelX}
@@ -797,6 +802,41 @@ function ThemedSankeyNode(props: ThemedNodeProps) {
                 {payload?.name}
             </text>
         </g>
+    )
+}
+
+function ThemedSankeyLink(props: LinkProps) {
+    const {
+        sourceX,
+        targetX,
+        sourceY,
+        targetY,
+        sourceControlX,
+        targetControlX,
+        linkWidth,
+        payload,
+    } = props
+    const sourcePayload = payload?.source as ThemedNodePayload | undefined
+    const targetPayload = payload?.target as ThemedNodePayload | undefined
+    const sourceWidth = sourcePayload?.dx ?? 0
+    const targetWidth = targetPayload?.dx ?? 0
+    const centerSourceX = sourceX - sourceWidth / 2
+    const centerTargetX = targetX + targetWidth / 2
+    const centerSourceControlX = sourceControlX - sourceWidth / 2
+    const centerTargetControlX = targetControlX + targetWidth / 2
+    const strokeColor = "var(--flow-link, #374151)"
+
+    return (
+        <path
+            className="recharts-sankey-link"
+            d={`M${centerSourceX},${sourceY} C${centerSourceControlX},${sourceY} ${centerTargetControlX},${targetY} ${centerTargetX},${targetY}`}
+            fill="none"
+            stroke="currentColor"
+            style={{color: strokeColor}}
+            strokeWidth={linkWidth}
+            strokeOpacity={0.1}
+            strokeLinecap="butt"
+        />
     )
 }
 
