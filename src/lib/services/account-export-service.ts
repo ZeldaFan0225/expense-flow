@@ -5,7 +5,7 @@ import {calculateImpactShare} from "@/lib/expense-shares"
 
 type AccountExportArchive = {
     filename: string
-    buffer: Buffer
+    buffer: ArrayBuffer
     counts: Record<string, number>
 }
 
@@ -289,7 +289,7 @@ export async function buildAccountExportArchive(userId: string): Promise<Account
     const stamp = metadata.generatedAt.replace(/[:.]/g, "-")
     const filename = `expense-flow-account-export-${stamp}.zip`
     const buffer = await zip.generateAsync({
-        type: "nodebuffer",
+        type: "arraybuffer",
         compression: "DEFLATE",
         compressionOptions: {level: 9},
     })

@@ -439,8 +439,10 @@ const endpointGroups: EndpointGroup[] = [
                 method: "GET",
                 path: "/api/spending?preset",
                 scope: "analytics:read",
-                description: "Balance series plus comparison deltas.",
-                query: "`preset=month|3m|6m|12m|ytd|custom`, `start`, `end` (ISO).",
+                description:
+                    "Balance series plus comparison deltas. Provide `start` + `end` to override the preset (ideal for rewinding a single historical month via API key).",
+                query:
+                    "`preset=month|3m|6m|12m|ytd|custom`, `start`, `end` (ISO, optional).",
                 response: `{
   series: {
     range: {
@@ -605,8 +607,10 @@ const endpointGroups: EndpointGroup[] = [
                 method: "GET",
                 path: "/api/analytics/income-flow",
                 scope: "analytics:read",
-                description: "Sankey nodes/links describing income allocation.",
-                query: "`month=YYYY-MM?`.",
+                description:
+                    "Sankey nodes/links describing income allocation. Accepts the same range params as `/api/spending` so API keys can pull a specific month.",
+                query:
+                    "`preset=month|3m|6m|12m|ytd|custom`, `start`, `end` (ISO, optional).",
                 response: `{
   nodes: Array<{ name: string; color?: string }>
   links: Array<{ source: number; target: number; value: number }>
