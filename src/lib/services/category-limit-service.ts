@@ -1,10 +1,16 @@
 import {startOfMonth, endOfMonth, format} from "date-fns"
-import type {Category, CategoryLimit} from "@prisma/client"
+import type {Prisma} from "@prisma/client"
 import {prisma} from "@/lib/prisma"
 import {encryptNumber, decryptNumber, serializeEncrypted} from "@/lib/encryption"
 import {calculateImpactShare} from "@/lib/expense-shares"
 
-type CategoryLimitRecord = CategoryLimit & { category: Category }
+type CategoryLimitRecord = (Awaited<ReturnType<typeof prisma.categoryLimit.findFirst>> & {
+    category: {
+        id: string
+        name: string
+        color: string
+    }
+}) | null
 
 export type CategoryLimitSummary = {
     id: string
@@ -30,13 +36,13 @@ export type CategoryLimitReport = {
     }
 }
 
-function mapLimit(record: CategoryLimitRecord): CategoryLimitSummary {
+function mapLimit(record: NonNullable<CategoryLimitRecord>): CategoryLimitSummary {
     return {
         id: record.id,
         categoryId: record.categoryId,
         categoryName: record.category.name,
         color: record.category.color,
-        limit: decryptNumber(record.limitAmountEncrypted, 0),
+        limit: decryptNumber(record.limitAmountEncrypted as Prisma.JsonValue, 0),
     }
 }
 
