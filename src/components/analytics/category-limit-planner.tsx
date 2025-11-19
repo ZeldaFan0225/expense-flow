@@ -30,7 +30,7 @@ type CategoryLimitPlannerProps = {
 
 const formSchema = z.object({
     categoryId: z.string().min(1, "Pick a category"),
-    limit: z.coerce.number().positive("Limit must be above 0"),
+    limit: z.number().positive("Limit must be above 0"),
 })
 
 export function CategoryLimitPlanner({

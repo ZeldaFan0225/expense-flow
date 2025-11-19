@@ -3,13 +3,15 @@ import {authenticateRequest} from "@/lib/api-auth"
 import {handleApiError, json} from "@/lib/http"
 import {deleteCategoryLimit} from "@/lib/services/category-limit-service"
 
+type ParamsContext = { params: Promise<{ id: string }> }
+
 export async function DELETE(
     request: NextRequest,
-    {params}: { params: { id: string } }
+    context: ParamsContext
 ) {
     try {
         const auth = await authenticateRequest(request, ["expenses_write"])
-        const id = params.id
+        const {id} = await context.params
         if (!id) {
             return json({error: "Missing id"}, {status: 400})
         }

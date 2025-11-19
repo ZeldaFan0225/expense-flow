@@ -1,9 +1,10 @@
 import {startOfMonth, endOfMonth, format} from "date-fns"
+import type {Prisma} from "@prisma/client"
 import {prisma} from "@/lib/prisma"
 import {encryptNumber, decryptNumber, serializeEncrypted} from "@/lib/encryption"
 import {calculateImpactShare} from "@/lib/expense-shares"
 
-type CategoryLimitRecord = Awaited<ReturnType<typeof prisma.categoryLimit.findFirst>>
+type CategoryLimitRecord = Prisma.CategoryLimitGetPayload<{ include: { category: true } }>
 
 export type CategoryLimitSummary = {
     id: string
@@ -29,7 +30,7 @@ export type CategoryLimitReport = {
     }
 }
 
-function mapLimit(record: NonNullable<CategoryLimitRecord>): CategoryLimitSummary {
+function mapLimit(record: CategoryLimitRecord): CategoryLimitSummary {
     return {
         id: record.id,
         categoryId: record.categoryId,
@@ -114,7 +115,7 @@ export async function getCategoryLimitReport(userId: string, month = new Date())
         return acc
     }, {})
 
-    const rows = limits.map((limit) => {
+    const rows: CategoryLimitReportRow[] = limits.map((limit) => {
         const spent = spendByCategory[limit.categoryId] ?? 0
         const limitValue = decryptNumber(limit.limitAmountEncrypted, 0)
         const variance = spent - limitValue
