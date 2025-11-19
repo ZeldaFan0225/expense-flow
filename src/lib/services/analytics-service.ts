@@ -508,6 +508,8 @@ type FlowLinkMeta = {
     bridgeTargetLabel?: string
 }
 
+type FlowLink = { source: number; target: number; value: number } & FlowLinkMeta
+
 export async function getIncomeFlowGraph(
     userId: string,
     params?: { preset?: RangePreset; start?: Date; end?: Date }
@@ -543,7 +545,7 @@ export async function getIncomeFlowGraph(
     ]
     const incomeNodeIndex = 2
     const spendingNodeIndex = 3
-    const links: Array<{ source: number; target: number; value: number } & FlowLinkMeta> = []
+    const links: FlowLink[] = []
     const remainingAmount = Math.max(overview.remainingBudget, 0)
 
     if (recurringIncomeTotal > 0) {
@@ -638,37 +640,23 @@ export async function getIncomeFlowGraph(
             return node
         })
 
-    const normalizedLinks = filteredLinks
-        .map((link) => {
-            const source = indexMap.get(link.source)
-            const target = indexMap.get(link.target)
-            if (typeof source !== "number" || typeof target !== "number") {
-                return null
-            }
-            return {
-                source,
-                target,
-                value: link.value,
-                hidden: link.hidden,
-                bridgeKey: link.bridgeKey,
-                bridgeSourceLabel: link.bridgeSourceLabel,
-                bridgeTargetLabel: link.bridgeTargetLabel,
-            }
+    const normalizedLinks: FlowLink[] = []
+    filteredLinks.forEach((link) => {
+        const source = indexMap.get(link.source)
+        const target = indexMap.get(link.target)
+        if (typeof source !== "number" || typeof target !== "number") {
+            return
+        }
+        normalizedLinks.push({
+            source,
+            target,
+            value: link.value,
+            hidden: link.hidden,
+            bridgeKey: link.bridgeKey,
+            bridgeSourceLabel: link.bridgeSourceLabel,
+            bridgeTargetLabel: link.bridgeTargetLabel,
         })
-        .filter(
-            (
-                link
-            ): link is {
-                source: number
-                target: number
-                value: number
-                hidden?: boolean
-                bridgeKey?: string
-                bridgeSourceLabel?: string
-                bridgeTargetLabel?: string
-            } =>
-                link !== null
-        )
+    })
 
     return {
         nodes: filteredNodes,

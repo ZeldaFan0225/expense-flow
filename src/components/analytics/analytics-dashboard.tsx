@@ -610,7 +610,7 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
         }
 
         const payload = selectedNode.payload as ThemedNodePayload | undefined
-        const label = payload?.label ?? payload?.name
+        const label = payload?.label ?? payload?.name ?? ""
         if (!label || payload?.kind === "meta") {
             setDetails(null)
             return
@@ -620,11 +620,10 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
             setLoadingDetails(true)
             try {
                 if (!type) return
-                const params = new URLSearchParams({
-                    category: label,
-                    type,
-                    preset,
-                })
+                const params = new URLSearchParams()
+                params.set("category", label)
+                params.set("type", type)
+                params.set("preset", preset)
                 if (monthRange) {
                     params.set("start", monthRange.start.toISOString())
                     params.set("end", monthRange.end.toISOString())
