@@ -499,6 +499,8 @@ export async function simulateBudget(userId: string, input: ScenarioInput) {
     }
 }
 
+type FlowNodeKind = "income" | "expense" | "meta"
+
 export async function getIncomeFlowGraph(
     userId: string,
     params?: { preset?: RangePreset; start?: Date; end?: Date }
@@ -526,11 +528,11 @@ export async function getIncomeFlowGraph(
         0
     )
 
-    const nodes: Array<{ name: string; color?: string }> = [
-        {name: "Recurring income", color: "var(--chart-1)"},
-        {name: "One-time income", color: "var(--chart-2)"},
-        {name: "Income", color: "var(--chart-3)"},
-        {name: "Spending", color: "var(--chart-4)"},
+    const nodes: Array<{ name: string; label: string; color?: string; kind: FlowNodeKind }> = [
+        {name: "recurring-income", label: "Recurring income", color: "var(--chart-1)", kind: "income"},
+        {name: "one-time-income", label: "One-time income", color: "var(--chart-2)", kind: "income"},
+        {name: "income", label: "Income", color: "var(--chart-3)", kind: "income"},
+        {name: "spending", label: "Spending", color: "var(--chart-4)", kind: "expense"},
     ]
     const incomeNodeIndex = 2
     const spendingNodeIndex = 3
@@ -560,7 +562,7 @@ export async function getIncomeFlowGraph(
 
     if (spendingShortfall > 0) {
         const savingsNodeIndex = nodes.length
-        nodes.push({name: "Savings", color: "var(--chart-5)"})
+        nodes.push({name: "savings", label: "Savings", color: "var(--chart-5)", kind: "meta"})
         links.push({source: savingsNodeIndex, target: spendingNodeIndex, value: spendingShortfall})
     }
 
@@ -568,16 +570,38 @@ export async function getIncomeFlowGraph(
         const value = Math.max(category.value, 0)
         if (value <= 0) return
         const targetIndex = nodes.length
-        nodes.push({name: category.label, color: category.color})
+        nodes.push({
+            name: category.id,
+            label: category.label,
+            color: category.color,
+            kind: "expense",
+        })
         links.push({source: spendingNodeIndex, target: targetIndex, value})
     })
 
     if (remainingAmount > 0) {
-        const remainingNodeIndex = nodes.length
-        nodes.push({name: "Remaining", color: "var(--chart-5)"})
+        const remainingIntermediateIndex = nodes.length
+        nodes.push({
+            name: "remaining-flow",
+            label: "Remaining",
+            color: "var(--chart-5)",
+            kind: "meta",
+        })
+        const remainingSinkIndex = nodes.length
+        nodes.push({
+            name: "remaining",
+            label: "Remaining",
+            color: "var(--chart-5)",
+            kind: "meta",
+        })
         links.push({
             source: incomeNodeIndex,
-            target: remainingNodeIndex,
+            target: remainingIntermediateIndex,
+            value: remainingAmount,
+        })
+        links.push({
+            source: remainingIntermediateIndex,
+            target: remainingSinkIndex,
             value: remainingAmount,
         })
     }

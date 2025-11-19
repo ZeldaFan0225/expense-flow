@@ -86,8 +86,17 @@ type Anomaly = {
     zScore: number
 }
 
+type FlowNodeKind = "income" | "expense" | "meta"
+
+type IncomeFlowNode = {
+    name: string
+    color?: string
+    label?: string
+    kind?: FlowNodeKind
+}
+
 type IncomeFlow = {
-    nodes: Array<{ name: string; color?: string }>
+    nodes: IncomeFlowNode[]
     links: Array<{ source: number; target: number; value: number }>
     totalIncome: number
     totalExpenses: number
@@ -578,13 +587,9 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
     )
     const type = React.useMemo(() => {
         if (!selectedNode) return null
-        const name = (selectedNode.payload as ThemedNodePayload)?.name
-        if (!name) return null
-        return name === "Recurring income" ||
-        name === "One-time income" ||
-        name === "Income"
-            ? "income"
-            : "expense"
+        const payload = selectedNode.payload as ThemedNodePayload | undefined
+        if (!payload || payload.kind === "meta") return null
+        return payload.kind === "income" ? "income" : "expense"
     }, [selectedNode])
 
     React.useEffect(() => {
@@ -593,9 +598,9 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
             return
         }
 
-        const name = (selectedNode.payload as ThemedNodePayload)?.name
-
-        if (!name || name === "Savings") {
+        const payload = selectedNode.payload as ThemedNodePayload | undefined
+        const label = payload?.label ?? payload?.name
+        if (!label || payload?.kind === "meta") {
             setDetails(null)
             return
         }
@@ -605,7 +610,7 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
             try {
                 if (!type) return
                 const params = new URLSearchParams({
-                    category: name,
+                    category: label,
                     type,
                     preset,
                 })
@@ -684,6 +689,7 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
                             <ResponsiveContainer width="100%" height="100%">
                                 <Sankey
                                     data={{nodes: flow.nodes, links: flow.links}}
+                                    nameKey="label"
                                     nodePadding={sankeyPadding}
                                     nodeWidth={sankeyNodeWidth}
                                     linkCurvature={linkCurvature}
@@ -736,7 +742,7 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
             </Card>
             {details && selectedNode && type && (
                 <CategoryDetailsCard
-                    title={`Details for ${(selectedNode.payload as ThemedNodePayload)?.name}`}
+                    title={`Details for ${(selectedNode.payload as ThemedNodePayload)?.label ?? (selectedNode.payload as ThemedNodePayload)?.name}`}
                     items={details}
                     currency={currency}
                     type={type}
@@ -750,7 +756,7 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
     )
 }
 
-type ThemedNodePayload = RechartsSankeyNode & { color?: string }
+type ThemedNodePayload = RechartsSankeyNode & IncomeFlowNode
 
 type ThemedNodeProps = SankeyNodeProps & {
     labelPadding?: number
@@ -759,7 +765,8 @@ type ThemedNodeProps = SankeyNodeProps & {
 function ThemedSankeyNode(props: ThemedNodeProps) {
     const {x, y, width, height, labelPadding = 16} = props
     const payload = props.payload as ThemedNodePayload
-    if (!payload.name) return null
+    const label = payload?.label ?? payload?.name
+    if (!label) return null
     const fill = payload?.color ?? "var(--secondary)"
     const isSink = (payload?.sourceLinks?.length ?? 0) === 0
     const isSource = (payload?.targetLinks?.length ?? 0) === 0
@@ -800,7 +807,7 @@ function ThemedSankeyNode(props: ThemedNodeProps) {
                 dominantBaseline="middle"
                 textAnchor={textAnchor}
             >
-                {payload?.name}
+                {label}
             </text>
         </g>
     )
@@ -814,11 +821,14 @@ function ThemedSankeyLink(props: LinkProps) {
         targetY,
         sourceControlX,
         targetControlX,
+        sourceRelativeY,
         linkWidth,
         payload,
     } = props
     const sourcePayload = payload?.source as ThemedNodePayload | undefined
     const targetPayload = payload?.target as ThemedNodePayload | undefined
+    const sourceLabel = sourcePayload?.label ?? sourcePayload?.name
+    const targetLabel = targetPayload?.label ?? targetPayload?.name
     const sourceWidth = sourcePayload?.dx ?? 0
     const targetWidth = targetPayload?.dx ?? 0
     const centerSourceX = sourceX - sourceWidth / 2
@@ -826,11 +836,24 @@ function ThemedSankeyLink(props: LinkProps) {
     const centerSourceControlX = sourceControlX - sourceWidth / 2
     const centerTargetControlX = targetControlX + targetWidth / 2
     const strokeColor = "var(--flow-link, #374151)"
+    let adjustedSourceY = sourceY
+    const linkHalfWidth = linkWidth / 2
+
+    // Force Income links to originate at the top/bottom edge so Remaining/Spending paths are obvious.
+    if (sourceLabel === "Income" && typeof sourceRelativeY === "number") {
+        const nodeTop = sourceY - sourceRelativeY - linkHalfWidth
+        const nodeBottom = nodeTop + (sourcePayload?.dy ?? 0)
+        if (targetLabel === "Spending") {
+            adjustedSourceY = nodeTop + linkHalfWidth
+        } else if (targetLabel === "Remaining") {
+            adjustedSourceY = nodeBottom - linkHalfWidth
+        }
+    }
 
     return (
         <path
             className="recharts-sankey-link"
-            d={`M${centerSourceX},${sourceY} C${centerSourceControlX},${sourceY} ${centerTargetControlX},${targetY} ${centerTargetX},${targetY}`}
+            d={`M${centerSourceX},${adjustedSourceY} C${centerSourceControlX},${adjustedSourceY} ${centerTargetControlX},${targetY} ${centerTargetX},${targetY}`}
             fill="none"
             stroke="currentColor"
             style={{color: strokeColor}}
