@@ -185,8 +185,11 @@ export async function getAvailableBalanceSeries(
     return {range, series}
 }
 
-export async function getPeriodComparison(userId: string) {
-    const currentMonth = new Date()
+export async function getPeriodComparison(
+    userId: string,
+    options: { month?: Date } = {}
+) {
+    const currentMonth = options.month ?? new Date()
     const previousMonth = subMonths(currentMonth, 1)
 
     const [current, previous] = await Promise.all([

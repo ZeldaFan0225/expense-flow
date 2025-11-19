@@ -89,6 +89,7 @@ export default async function HomePage() {
             meta: utilization ? `${Math.min(utilization, 999)}% used` : undefined,
         }
     })
+    const hasGuardrailAlerts = limitAlertItems.length > 0
 
     const checklist = [
         {
@@ -155,13 +156,15 @@ export default async function HomePage() {
 
                 <DailySummaryBoard summary={summary} currency={currency}/>
 
-                <SummaryList
-                    title="Guardrail alerts"
-                    description="Categories currently above their monthly ceiling. Tweak guardrails from Analytics > Limits."
-                    emptyLabel="All categories are within their guardrails."
-                    items={limitAlertItems}
-                    variant="alert"
-                />
+                {hasGuardrailAlerts ? (
+                    <SummaryList
+                        title="Guardrail alerts"
+                        description="Categories currently above their monthly ceiling. Tweak guardrails from Analytics > Limits."
+                        emptyLabel="All categories are within their guardrails."
+                        items={limitAlertItems}
+                        variant="alert"
+                    />
+                ) : null}
 
                 <div className="grid gap-6 lg:grid-cols-3">
                     <SummaryList

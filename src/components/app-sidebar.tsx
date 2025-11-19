@@ -2,6 +2,7 @@
 
 import Link from "next/link"
 import {usePathname} from "next/navigation"
+import type {LucideIcon} from "lucide-react"
 import {
     Activity,
     BadgeDollarSign,
@@ -32,31 +33,46 @@ import {
     SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
-const navigation = [
+type NavigationSection = {
+    label: string
+    items: Array<{
+        title: string
+        href: string
+        icon: LucideIcon
+        match?: "exact" | "prefix"
+    }>
+}
+
+const navigation: NavigationSection[] = [
     {
-        label: "General",
+        label: "Pulse",
         items: [
-            {title: "Home", href: "/", icon: Home},
-            {title: "Dashboard", href: "/overview", icon: LayoutDashboard},
-            {title: "Expenses", href: "/expenses", icon: ListOrdered},
-            {title: "Income", href: "/income", icon: BadgeDollarSign},
+            {title: "Home", href: "/", icon: Home, match: "exact"},
+            {title: "Dashboard", href: "/dashboard", icon: LayoutDashboard},
             {title: "Activity Feed", href: "/feed", icon: Activity},
+        ],
+    },
+    {
+        label: "Money",
+        items: [
+            {title: "Expenses", href: "/expenses", icon: ListOrdered},
+            {title: "Add Expense", href: "/items", icon: Wallet},
+            {title: "Income", href: "/income", icon: BadgeDollarSign},
+            {title: "Categories", href: "/categories", icon: Shield},
         ],
     },
     {
         label: "Planning",
         items: [
-            {title: "Add Expense", href: "/items", icon: Wallet},
-            {title: "Recurring", href: "/recurring", icon: Repeat2},
-            {title: "Categories", href: "/categories", icon: Shield},
-            {title: "Analytics", href: "/analytics", icon: ChartSpline},
+            {title: "Analytics", href: "/analytics", icon: ChartSpline, match: "exact"},
             {title: "Category Limits", href: "/analytics/limits", icon: Target},
             {title: "Scenario Planner", href: "/analytics/scenario", icon: Sparkles},
         ],
     },
     {
-        label: "System",
+        label: "Automation & Tools",
         items: [
+            {title: "Recurring", href: "/recurring", icon: Repeat2},
             {title: "Automation Log", href: "/automation-feed", icon: Sparkles},
             {
                 title: "Recurring Income Log",
@@ -117,12 +133,11 @@ export function AppSidebar({
                         <SidebarGroupContent>
                             <SidebarMenu>
                                 {section.items.map((item) => {
+                                    const matchType = item.match ?? "prefix"
                                     const isActive =
-                                        item.href === "/"
-                                            ? pathname === "/"
-                                            : item.href === "/analytics"
-                                                ? pathname === "/analytics"
-                                                : pathname.startsWith(item.href)
+                                        matchType === "exact"
+                                            ? pathname === item.href
+                                            : pathname.startsWith(item.href)
                                     return (
                                         <SidebarMenuItem key={item.title}>
                                             <SidebarMenuButton asChild isActive={isActive}>

@@ -1,7 +1,7 @@
 "use client"
 
 import * as React from "react"
-import {format} from "date-fns"
+import {endOfMonth, format, startOfMonth} from "date-fns"
 import {Banknote, Wallet} from "lucide-react"
 import {
     Area,
@@ -31,7 +31,7 @@ import {formatCurrency} from "@/lib/currency"
 import {cn} from "@/lib/utils"
 
 const timeRangeTabs = [
-    {value: "month", label: "1 month"},
+    {value: "month", label: "1 Month"},
     {value: "3m", label: "Last 3M"},
     {value: "6m", label: "Last 6M"},
     {value: "12m", label: "Last 12M"},
@@ -118,7 +118,7 @@ export function AnalyticsDashboard({
                                        currency = "USD",
                                    }: AnalyticsDashboardProps) {
     const router = useRouter()
-    const {preset, setPreset} = useAnalytics()
+    const {preset, setPreset, selectedMonth, setSelectedMonth} = useAnalytics()
     const [series, setSeries] = React.useState(initialSeries)
     const [comparison, setComparison] = React.useState(initialComparison)
     const [forecast, setForecast] = React.useState(initialForecast)
@@ -130,6 +130,9 @@ export function AnalyticsDashboard({
     const [baselineMonths, setBaselineMonths] = React.useState(6)
     const [loadingRange, setLoadingRange] = React.useState(false)
     const [refreshingInsights, setRefreshingInsights] = React.useState(false)
+    const monthInputId = React.useId()
+    const maxSelectableMonth = React.useMemo(() => format(new Date(), "yyyy-MM"), [])
+    const monthRange = React.useMemo(() => deriveMonthRange(preset as RangePreset, selectedMonth), [preset, selectedMonth])
 
     React.useEffect(() => {
         const presetToMonths: Record<RangePreset, number> = {
@@ -149,6 +152,10 @@ export function AnalyticsDashboard({
             setLoadingRange(true)
             try {
                 const params = new URLSearchParams({preset})
+                if (monthRange) {
+                    params.set("start", monthRange.start.toISOString())
+                    params.set("end", monthRange.end.toISOString())
+                }
                 const response = await fetch(`/api/spending?${params.toString()}`, {
                     signal: controller.signal,
                 })
@@ -166,16 +173,21 @@ export function AnalyticsDashboard({
 
         loadRange()
         return () => controller.abort()
-    }, [preset])
+    }, [monthRange, preset])
 
     const refreshInsights = React.useCallback(async () => {
         setRefreshingInsights(true)
         try {
+            const flowParams = new URLSearchParams({preset})
+            if (monthRange) {
+                flowParams.set("start", monthRange.start.toISOString())
+                flowParams.set("end", monthRange.end.toISOString())
+            }
             const [forecastRes, anomalyRes, healthRes, flowRes] = await Promise.all([
                 fetch("/api/analytics/forecast"),
                 fetch("/api/analytics/anomalies"),
                 fetch(`/api/analytics/category-health?baselineMonths=${baselineMonths}`),
-                fetch(`/api/analytics/income-flow?preset=${preset}`),
+                fetch(`/api/analytics/income-flow?${flowParams.toString()}`),
             ])
             if (!forecastRes.ok) throw new Error("Forecast failed")
             if (!anomalyRes.ok) throw new Error("Anomalies failed")
@@ -196,7 +208,7 @@ export function AnalyticsDashboard({
         } finally {
             setRefreshingInsights(false)
         }
-    }, [baselineMonths, preset])
+    }, [baselineMonths, monthRange, preset])
 
     React.useEffect(() => {
         refreshInsights()
@@ -229,7 +241,28 @@ export function AnalyticsDashboard({
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-4">
-                <Tabs value={preset} onChange={(value) => setPreset(value as RangePreset)} tabs={timeRangeTabs}/>
+                <div className="flex flex-wrap items-center gap-3">
+                    <Tabs value={preset} onChange={(value) => setPreset(value as RangePreset)} tabs={timeRangeTabs}/>
+                    {preset === "month" ? (
+                        <div className="flex items-center gap-2">
+                            <Label htmlFor={monthInputId} className="text-xs text-muted-foreground">
+                                Month
+                            </Label>
+                            <Input
+                                id={monthInputId}
+                                type="month"
+                                className="w-40"
+                                max={maxSelectableMonth}
+                                value={selectedMonth || maxSelectableMonth}
+                                onChange={(event) => {
+                                    if (event.target.value) {
+                                        setSelectedMonth(event.target.value)
+                                    }
+                                }}
+                            />
+                        </div>
+                    ) : null}
+                </div>
                 <div className="flex flex-wrap items-center gap-3">
                     <Button type="button" variant="outline" onClick={refreshInsights} disabled={refreshingInsights}>
                         {refreshingInsights ? "Refreshing…" : "Refresh insights"}
@@ -318,6 +351,37 @@ export function AnalyticsDashboard({
             ) : null}
         </div>
     )
+}
+
+type MonthRange = { start: Date; end: Date }
+
+function deriveMonthRange(preset: RangePreset | string, monthValue?: string | null): MonthRange | null {
+    if (preset !== "month" || !monthValue) {
+        return null
+    }
+    const parsed = parseMonthValue(monthValue)
+    if (!parsed) {
+        return null
+    }
+    return {
+        start: startOfMonth(parsed),
+        end: endOfMonth(parsed),
+    }
+}
+
+function parseMonthValue(value: string) {
+    const [yearPart, monthPart] = value.split("-")
+    const year = Number(yearPart)
+    const monthIndex = Number(monthPart)
+    if (
+        !Number.isFinite(year) ||
+        !Number.isFinite(monthIndex) ||
+        monthIndex < 1 ||
+        monthIndex > 12
+    ) {
+        return null
+    }
+    return new Date(year, monthIndex - 1, 1)
 }
 
 function CategoryDetailsCard({
@@ -507,7 +571,11 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
     const [selectedNode, setSelectedNode] = React.useState<SankeyNodeProps | null>(null)
     const [details, setDetails] = React.useState<any[] | null>(null)
     const [loadingDetails, setLoadingDetails] = React.useState(false)
-    const {preset} = useAnalytics()
+    const {preset, selectedMonth} = useAnalytics()
+    const monthRange = React.useMemo(
+        () => deriveMonthRange(preset as RangePreset, selectedMonth),
+        [preset, selectedMonth]
+    )
     const type = React.useMemo(() => {
         if (!selectedNode) return null
         const name = (selectedNode.payload as ThemedNodePayload)?.name
@@ -541,6 +609,10 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
                     type,
                     preset,
                 })
+                if (monthRange) {
+                    params.set("start", monthRange.start.toISOString())
+                    params.set("end", monthRange.end.toISOString())
+                }
                 const response = await fetch(
                     `/api/analytics/category-details?${params.toString()}`
                 )
@@ -556,7 +628,7 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
         }
 
         fetchDetails()
-    }, [selectedNode, preset, type])
+    }, [monthRange, preset, selectedNode, type])
 
     React.useEffect(() => {
         if (typeof window === "undefined" || !window.matchMedia) return
@@ -574,20 +646,22 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
     const sankeyMargin = React.useMemo(
         () =>
             isCompact
-                ? {top: 24, right: 24, bottom: 80, left: 24}
-                : {top: 16, right: 120, bottom: 16, left: 150},
+                ? {top: 20, right: 12, bottom: 60, left: 12}
+                : {top: 12, right: 36, bottom: 28, left: 42},
         [isCompact]
     )
     const sankeyPadding = 48
     const sankeyNodeWidth = isCompact ? 14 : 18
     const linkCurvature = isCompact ? 0.35 : 0.5
     const chartHeight = isCompact ? "34rem" : "30rem"
+    const sankeyLabelPadding = isCompact ? 8 : 12
     const renderSankeyNode = React.useCallback(
         (nodeProps: SankeyNodeProps) =>
-            (<ThemedSankeyNode {...nodeProps} /> as unknown as React.ReactElement<
-                React.SVGProps<SVGRectElement>
-            >),
-        []
+            (<ThemedSankeyNode
+                {...nodeProps}
+                labelPadding={sankeyLabelPadding}
+            /> as unknown as React.ReactElement<React.SVGProps<SVGRectElement>>),
+        [sankeyLabelPadding]
     )
 
     return (
@@ -671,26 +745,30 @@ function IncomeFlowCard({flow, currency}: { flow: IncomeFlow; currency: string }
 
 type ThemedNodePayload = RechartsSankeyNode & { color?: string }
 
-function ThemedSankeyNode(props: SankeyNodeProps) {
-    const {x, y, width, height} = props
+type ThemedNodeProps = SankeyNodeProps & {
+    labelPadding?: number
+}
+
+function ThemedSankeyNode(props: ThemedNodeProps) {
+    const {x, y, width, height, labelPadding = 16} = props
     const payload = props.payload as ThemedNodePayload
     if (!payload.name) return null
     const fill = payload?.color ?? "var(--secondary)"
     const isSink = (payload?.sourceLinks?.length ?? 0) === 0
     const isSource = (payload?.targetLinks?.length ?? 0) === 0
-    const inwardOffset = 32
-    const defaultOffset = 16
-    let labelX = x + width + defaultOffset
+    const outwardOffset = labelPadding
+    const edgeOffset = labelPadding + 6
+    let labelX = x + width + outwardOffset
     let textAnchor: "start" | "end" = "start"
 
     if (isSource) {
-        labelX = x - inwardOffset
+        labelX = x - edgeOffset
         textAnchor = "end"
     }
 
     if (isSink) {
         textAnchor = "start"
-        labelX = x + width + inwardOffset
+        labelX = x + width + edgeOffset
     }
     const textColor = "var(--foreground)"
 

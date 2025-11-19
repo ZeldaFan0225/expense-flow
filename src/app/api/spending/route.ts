@@ -10,16 +10,15 @@ export async function GET(request: NextRequest) {
         const params = new URL(request.url).searchParams
         const presetParam = params.get("preset") as RangePreset | null
         const preset: RangePreset = presetParam ?? "6m"
-        const start = params.get("start")
-            ? new Date(params.get("start") as string)
-            : undefined
-        const end = params.get("end")
-            ? new Date(params.get("end") as string)
-            : undefined
+        const startParam = params.get("start")
+        const endParam = params.get("end")
+        const start = startParam ? new Date(startParam) : undefined
+        const end = endParam ? new Date(endParam) : undefined
+        const comparisonMonth = preset === "month" && start ? start : undefined
 
         const [series, comparison] = await Promise.all([
             getAvailableBalanceSeries(auth.userId, {preset, start, end}),
-            getPeriodComparison(auth.userId),
+            getPeriodComparison(auth.userId, {month: comparisonMonth}),
         ])
 
         return json({series, comparison})

@@ -21,7 +21,7 @@ export function resolveRange(params?: {
     const now = new Date()
     const preset = params?.preset ?? "6m"
 
-    if (preset === "custom" && params?.start && params?.end) {
+    if (params?.start && params?.end) {
         return {
             preset,
             start: params.start,

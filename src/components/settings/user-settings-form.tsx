@@ -25,6 +25,7 @@ export function UserSettingsForm({
     const [saving, setSaving] = React.useState(false)
     const [deleteConfirm, setDeleteConfirm] = React.useState("")
     const [deleting, setDeleting] = React.useState(false)
+    const [exporting, setExporting] = React.useState(false)
     const {showToast} = useToast()
 
     const handleSubmit = async (event: React.FormEvent) => {
@@ -105,6 +106,54 @@ export function UserSettingsForm({
         }
     }
 
+    const handleExportAccount = async () => {
+        setExporting(true)
+        try {
+            const response = await fetch("/api/export/account")
+            if (!response.ok) {
+                let message = "Failed to prepare export"
+                const contentType = response.headers.get("Content-Type") ?? ""
+                if (contentType.includes("application/json")) {
+                    const data = await response.json().catch(() => null)
+                    if (data?.error) {
+                        message = data.error
+                    }
+                }
+                throw new Error(message)
+            }
+
+            const blob = await response.blob()
+            const disposition = response.headers.get("Content-Disposition")
+            const filename =
+                extractFilenameFromDisposition(disposition) ??
+                `expense-flow-account-export-${new Date().toISOString()}.zip`
+
+            const url = URL.createObjectURL(blob)
+            const anchor = document.createElement("a")
+            anchor.href = url
+            anchor.download = filename
+            anchor.style.display = "none"
+            document.body.appendChild(anchor)
+            anchor.click()
+            document.body.removeChild(anchor)
+            setTimeout(() => URL.revokeObjectURL(url), 1000)
+
+            showToast({
+                title: "Archive ready",
+                description: "Check your downloads folder for the zip file.",
+                variant: "success",
+            })
+        } catch (err) {
+            showToast({
+                title: "Export failed",
+                description: err instanceof Error ? err.message : "Please try again.",
+                variant: "destructive",
+            })
+        } finally {
+            setExporting(false)
+        }
+    }
+
     return (
         <div className="space-y-6">
             <Card className="rounded-3xl">
@@ -158,6 +207,25 @@ export function UserSettingsForm({
                 </CardContent>
             </Card>
 
+            <Card className="rounded-3xl">
+                <CardHeader>
+                    <CardTitle>Account archive</CardTitle>
+                    <p className="text-sm text-muted-foreground">
+                        Download a zip file containing JSON copies of your expenses, income, categories, API keys,
+                        schedules, and preferences.
+                    </p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                    <p className="text-xs text-muted-foreground">
+                        Exports decrypt all sensitive fields. Store the archive in a secure location and delete it if no
+                        longer needed.
+                    </p>
+                    <Button type="button" variant="outline" onClick={handleExportAccount} disabled={exporting}>
+                        {exporting ? "Preparing…" : "Download data zip"}
+                    </Button>
+                </CardContent>
+            </Card>
+
             <Card className="rounded-3xl border-destructive/40">
                 <CardHeader>
                     <CardTitle>Danger zone</CardTitle>
@@ -193,6 +261,23 @@ export function UserSettingsForm({
             </Card>
         </div>
     )
+}
+
+function extractFilenameFromDisposition(disposition?: string | null) {
+    if (!disposition) return null
+    const utfMatch = disposition.match(/filename\*=UTF-8''([^;]+)/i)
+    if (utfMatch?.[1]) {
+        try {
+            return decodeURIComponent(utfMatch[1])
+        } catch (error) {
+            return utfMatch[1]
+        }
+    }
+    const basicMatch = disposition.match(/filename="?([^";]+)"?/i)
+    if (basicMatch?.[1]) {
+        return basicMatch[1]
+    }
+    return null
 }
 
 function Field({

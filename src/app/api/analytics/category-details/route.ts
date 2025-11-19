@@ -15,12 +15,16 @@ export async function GET(req: Request) {
     const categoryName = searchParams.get("category")
     const type = searchParams.get("type")
     const preset = (searchParams.get("preset") ?? "6m") as RangePreset
+    const startParam = searchParams.get("start")
+    const endParam = searchParams.get("end")
+    const customStart = startParam ? new Date(startParam) : undefined
+    const customEnd = endParam ? new Date(endParam) : undefined
 
     if (!categoryName || !type) {
         return new Response("Missing category or type", {status: 400})
     }
 
-    const {start, end} = resolveRange({preset})
+    const {start, end} = resolveRange({preset, start: customStart, end: customEnd})
 
     try {
         if (type === "income") {
